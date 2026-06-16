@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/package",
+  "name": "@mimo-ai/script",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "semver": "^7.6.3"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/semver": "^7.5.8"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

@@ -1,0 +1,226 @@
+name: desktop-package
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Desktop release channel"
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - beta
+          - prod
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-macos:
+    name: macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+
+    env:
+      MIMOCODE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.channel || 'prod' }}
+      MIMOCODE_ENABLE_UPDATER: "false"
+      MIMOCODE_MAC_SIGN: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Typecheck desktop
+        run: bun --cwd packages/desktop typecheck
+
+      - name: Build desktop
+        run: bun --cwd packages/desktop build
+
+      - name: Package macOS app
+        run: bun --cwd packages/desktop package:mac
+
+      - name: Verify macOS artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dmg="packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.dmg"
+          zip="packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.zip"
+          test -f "$dmg"
+          test -f "$zip"
+
+          app_path="$(find packages/desktop/dist -maxdepth 2 -type d -name 'MiMo Code*.app' | head -n 1)"
+          test -n "$app_path"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app_path/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleName" "$app_path/Contents/Info.plist"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mimo-code-desktop-mac-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.dmg
+            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.dmg.blockmap
+            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.zip
+            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.zip.blockmap
+
+      - name: Upload release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "$tag" --notes "MiMo Code Desktop ${tag}"
+          fi
+          gh release upload "$tag" \
+            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.dmg \
+            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.dmg.blockmap \
+            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.zip \
+            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.zip.blockmap \
+            --clobber
+
+  package-windows:
+    name: Windows x64
+    runs-on: windows-2025
+
+    env:
+      MIMOCODE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.channel || 'prod' }}
+      MIMOCODE_ENABLE_UPDATER: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Typecheck desktop
+        run: bun --cwd packages/desktop typecheck
+
+      - name: Build desktop
+        run: bun --cwd packages/desktop build
+
+      - name: Package Windows app
+        run: bun --cwd packages/desktop package:win
+
+      - name: Verify Windows artifacts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Get-ChildItem packages/desktop/dist -File -Filter "mimo-code-desktop-win-x64.exe"
+          $blockmap = Get-ChildItem packages/desktop/dist -File -Filter "mimo-code-desktop-win-x64.exe.blockmap"
+          if (-not $installer) { throw "Missing Windows installer" }
+          if (-not $blockmap) { throw "Missing Windows blockmap" }
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mimo-code-desktop-win-x64
+          if-no-files-found: error
+          path: |
+            packages/desktop/dist/mimo-code-desktop-win-x64.exe
+            packages/desktop/dist/mimo-code-desktop-win-x64.exe.blockmap
+
+      - name: Upload release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "$tag" --notes "MiMo Code Desktop ${tag}"
+          fi
+          gh release upload "$tag" \
+            packages/desktop/dist/mimo-code-desktop-win-x64.exe \
+            packages/desktop/dist/mimo-code-desktop-win-x64.exe.blockmap \
+            --clobber
+
+  package-linux:
+    name: Linux x64
+    runs-on: ubuntu-24.04
+
+    env:
+      MIMOCODE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.channel || 'prod' }}
+      MIMOCODE_ENABLE_UPDATER: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Typecheck desktop
+        run: bun --cwd packages/desktop typecheck
+
+      - name: Build desktop
+        run: bun --cwd packages/desktop build
+
+      - name: Package Linux app
+        run: bun --cwd packages/desktop package:linux
+
+      - name: Verify Linux artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage
+          test -f packages/desktop/dist/mimo-code-desktop-linux-amd64.deb
+          test -f packages/desktop/dist/mimo-code-desktop-linux-x86_64.rpm
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mimo-code-desktop-linux-x86_64
+          if-no-files-found: error
+          path: |
+            packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage
+            packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage.blockmap
+            packages/desktop/dist/mimo-code-desktop-linux-amd64.deb
+            packages/desktop/dist/mimo-code-desktop-linux-x86_64.rpm
+
+      - name: Upload release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "$tag" --notes "MiMo Code Desktop ${tag}"
+          fi
+          gh release upload "$tag" \
+            packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage \
+            packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage.blockmap \
+            packages/desktop/dist/mimo-code-desktop-linux-amd64.deb \
+            packages/desktop/dist/mimo-code-desktop-linux-x86_64.rpm \
+            --clobber
