@@ -6,18 +6,18 @@ import { fileURLToPath } from "url"
 
 const theme = fileURLToPath(new URL("./public/oc-theme-preload.js", import.meta.url))
 const ghosttyWeb = (() => {
-  const workspace = fileURLToPath(new URL("./node_modules/ghostty-web/dist/ghostty-web.js", import.meta.url))
-  if (existsSync(workspace)) return workspace
-
   const bun = fileURLToPath(new URL("../../node_modules/.bun", import.meta.url))
-  if (!existsSync(bun)) return workspace
+  const candidates = [
+    fileURLToPath(new URL("./node_modules/ghostty-web/dist/ghostty-web.js", import.meta.url)),
+    fileURLToPath(new URL("../../node_modules/ghostty-web/dist/ghostty-web.js", import.meta.url)),
+    ...(existsSync(bun)
+      ? readdirSync(bun)
+          .filter((entry) => entry.startsWith("ghostty-web@"))
+          .map((entry) => path.join(bun, entry, "node_modules", "ghostty-web", "dist", "ghostty-web.js"))
+      : []),
+  ]
 
-  return (
-    readdirSync(bun)
-      .filter((entry) => entry.startsWith("ghostty-web@"))
-      .map((entry) => path.join(bun, entry, "node_modules", "ghostty-web", "dist", "ghostty-web.js"))
-      .find((entry) => existsSync(entry)) ?? workspace
-  )
+  return candidates.find((entry) => existsSync(entry)) ?? candidates[0]
 })()
 
 /**
