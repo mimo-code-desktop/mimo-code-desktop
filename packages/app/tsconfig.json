@@ -18,7 +18,8 @@
     "outDir": "node_modules/.ts-dist",
     "isolatedModules": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "ghostty-web": ["./node_modules/ghostty-web/dist/index.d.ts"]
     }
   },
   "include": ["src", "package.json"],

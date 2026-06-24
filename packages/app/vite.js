@@ -16,6 +16,7 @@ export default [
         resolve: {
           alias: {
             "@": fileURLToPath(new URL("./src", import.meta.url)),
+            "ghostty-web": fileURLToPath(new URL("./node_modules/ghostty-web/dist/ghostty-web.js", import.meta.url)),
           },
         },
         worker: {
