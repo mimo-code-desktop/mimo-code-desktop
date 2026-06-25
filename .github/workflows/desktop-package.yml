@@ -48,6 +48,11 @@ jobs:
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
 
+      - name: Read package version
+        id: package_version
+        shell: bash
+        run: echo "version=$(bun -e 'console.log((await Bun.file(\"packages/desktop/package.json\").json()).version)')" >> "$GITHUB_OUTPUT"
+
       - name: Typecheck desktop
         run: bun --cwd packages/desktop typecheck
 
@@ -62,8 +67,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          dmg="packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.dmg"
-          zip="packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.zip"
+          version="${{ steps.package_version.outputs.version }}"
+          dmg="packages/desktop/dist/mimo-code-desktop-${version}-mac-${{ matrix.arch }}.dmg"
+          zip="packages/desktop/dist/mimo-code-desktop-${version}-mac-${{ matrix.arch }}.zip"
           test -f "$dmg"
           test -f "$zip"
 
@@ -75,13 +81,13 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mimo-code-desktop-mac-${{ matrix.arch }}
+          name: mimo-code-desktop-${{ steps.package_version.outputs.version }}-mac-${{ matrix.arch }}
           if-no-files-found: error
           path: |
-            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.dmg
-            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.dmg.blockmap
-            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.zip
-            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.zip.blockmap
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-mac-${{ matrix.arch }}.dmg
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-mac-${{ matrix.arch }}.dmg.blockmap
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-mac-${{ matrix.arch }}.zip
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-mac-${{ matrix.arch }}.zip.blockmap
 
       - name: Upload release assets
         if: startsWith(github.ref, 'refs/tags/')
@@ -95,10 +101,10 @@ jobs:
             gh release create "$tag" --title "$tag" --notes "MiMo Code Desktop ${tag}"
           fi
           gh release upload "$tag" \
-            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.dmg \
-            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.dmg.blockmap \
-            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.zip \
-            packages/desktop/dist/mimo-code-desktop-mac-${{ matrix.arch }}.zip.blockmap \
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-mac-${{ matrix.arch }}.dmg \
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-mac-${{ matrix.arch }}.dmg.blockmap \
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-mac-${{ matrix.arch }}.zip \
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-mac-${{ matrix.arch }}.zip.blockmap \
             --clobber
 
   package-windows:
@@ -116,6 +122,11 @@ jobs:
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
 
+      - name: Read package version
+        id: package_version
+        shell: bash
+        run: echo "version=$(bun -e 'console.log((await Bun.file(\"packages/desktop/package.json\").json()).version)')" >> "$GITHUB_OUTPUT"
+
       - name: Typecheck desktop
         run: bun --cwd packages/desktop typecheck
 
@@ -129,19 +140,20 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $installer = Get-ChildItem packages/desktop/dist -File -Filter "mimo-code-desktop-win-x64.exe"
-          $blockmap = Get-ChildItem packages/desktop/dist -File -Filter "mimo-code-desktop-win-x64.exe.blockmap"
+          $version = "${{ steps.package_version.outputs.version }}"
+          $installer = Get-ChildItem packages/desktop/dist -File -Filter "mimo-code-desktop-$version-win-x64.exe"
+          $blockmap = Get-ChildItem packages/desktop/dist -File -Filter "mimo-code-desktop-$version-win-x64.exe.blockmap"
           if (-not $installer) { throw "Missing Windows installer" }
           if (-not $blockmap) { throw "Missing Windows blockmap" }
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mimo-code-desktop-win-x64
+          name: mimo-code-desktop-${{ steps.package_version.outputs.version }}-win-x64
           if-no-files-found: error
           path: |
-            packages/desktop/dist/mimo-code-desktop-win-x64.exe
-            packages/desktop/dist/mimo-code-desktop-win-x64.exe.blockmap
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-win-x64.exe
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-win-x64.exe.blockmap
 
       - name: Upload release assets
         if: startsWith(github.ref, 'refs/tags/')
@@ -155,8 +167,8 @@ jobs:
             gh release create "$tag" --title "$tag" --notes "MiMo Code Desktop ${tag}"
           fi
           gh release upload "$tag" \
-            packages/desktop/dist/mimo-code-desktop-win-x64.exe \
-            packages/desktop/dist/mimo-code-desktop-win-x64.exe.blockmap \
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-win-x64.exe \
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-win-x64.exe.blockmap \
             --clobber
 
   package-linux:
@@ -179,6 +191,11 @@ jobs:
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
 
+      - name: Read package version
+        id: package_version
+        shell: bash
+        run: echo "version=$(bun -e 'console.log((await Bun.file(\"packages/desktop/package.json\").json()).version)')" >> "$GITHUB_OUTPUT"
+
       - name: Typecheck desktop
         run: bun --cwd packages/desktop typecheck
 
@@ -192,19 +209,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage
-          test -f packages/desktop/dist/mimo-code-desktop-linux-amd64.deb
-          test -f packages/desktop/dist/mimo-code-desktop-linux-x86_64.rpm
+          version="${{ steps.package_version.outputs.version }}"
+          test -f "packages/desktop/dist/mimo-code-desktop-${version}-linux-x86_64.AppImage"
+          test -f "packages/desktop/dist/mimo-code-desktop-${version}-linux-amd64.deb"
+          test -f "packages/desktop/dist/mimo-code-desktop-${version}-linux-x86_64.rpm"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mimo-code-desktop-linux-x86_64
+          name: mimo-code-desktop-${{ steps.package_version.outputs.version }}-linux-x86_64
           if-no-files-found: error
           path: |
-            packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage
-            packages/desktop/dist/mimo-code-desktop-linux-amd64.deb
-            packages/desktop/dist/mimo-code-desktop-linux-x86_64.rpm
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-linux-x86_64.AppImage
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-linux-amd64.deb
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-linux-x86_64.rpm
 
       - name: Upload release assets
         if: startsWith(github.ref, 'refs/tags/')
@@ -218,7 +236,7 @@ jobs:
             gh release create "$tag" --title "$tag" --notes "MiMo Code Desktop ${tag}"
           fi
           gh release upload "$tag" \
-            packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage \
-            packages/desktop/dist/mimo-code-desktop-linux-amd64.deb \
-            packages/desktop/dist/mimo-code-desktop-linux-x86_64.rpm \
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-linux-x86_64.AppImage \
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-linux-amd64.deb \
+            packages/desktop/dist/mimo-code-desktop-${{ steps.package_version.outputs.version }}-linux-x86_64.rpm \
             --clobber

@@ -29,7 +29,7 @@ const channel = (() => {
 const macSigningEnabled = process.env.MIMOCODE_MAC_SIGN === "true"
 
 const getBase = (): Configuration => ({
-  artifactName: "mimo-code-desktop-${os}-${arch}.${ext}",
+  artifactName: "mimo-code-desktop-${version}-${os}-${arch}.${ext}",
   directories: {
     output: "dist",
     buildResources: "resources",
