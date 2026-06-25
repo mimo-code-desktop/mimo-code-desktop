@@ -1440,6 +1440,7 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
 }
 
 PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
+  const i18n = useI18n()
   const part = () => props.part as ReasoningPart
   const streaming = createMemo(
     () => props.message.role === "assistant" && typeof (props.message as AssistantMessage).time.completed !== "number",
@@ -1449,9 +1450,21 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
   return (
     <Show when={text()}>
       <div data-component="reasoning-part">
-        <Show when={streaming()} fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} />}>
-          <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
-        </Show>
+        <Collapsible variant="ghost" data-scope="reasoning" defaultOpen={false}>
+          <Collapsible.Trigger>
+            <div data-slot="reasoning-part-trigger">
+              <Collapsible.Arrow />
+              <span data-slot="reasoning-part-label">{i18n.t("ui.sessionTurn.status.thinking")}</span>
+            </div>
+          </Collapsible.Trigger>
+          <Collapsible.Content>
+            <div data-slot="reasoning-part-content">
+              <Show when={streaming()} fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} />}>
+                <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
+              </Show>
+            </div>
+          </Collapsible.Content>
+        </Collapsible>
       </div>
     </Show>
   )

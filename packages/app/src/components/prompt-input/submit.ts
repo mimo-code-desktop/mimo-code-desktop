@@ -30,6 +30,12 @@ const pending = new Map<string, PendingPrompt>()
 export const promptExecutionTargets = ["mimo", "claude", "codex", "opencode"] as const
 export type PromptExecutionTarget = (typeof promptExecutionTargets)[number]
 
+const externalTargetLabels = {
+  claude: "Claude Code",
+  codex: "Codex CLI",
+  opencode: "OpenCode",
+} satisfies Record<Exclude<PromptExecutionTarget, "mimo">, string>
+
 const debugErrorMessage = (err: unknown) => {
   if (err && typeof err === "object" && "data" in err) {
     const data = (err as { data?: { message?: string } }).data
@@ -514,7 +520,32 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       })
     }
 
+    const messageID = Identifier.ascending("message")
+
     if (executionTarget !== "mimo") {
+      const { optimisticParts } = buildRequestParts({
+        prompt: currentPrompt,
+        context,
+        images,
+        text,
+        sessionID: session.id,
+        messageID,
+        sessionDirectory,
+      })
+      input.onSubmit?.()
+      sync.session.optimistic.add({
+        directory: sessionDirectory,
+        sessionID: session.id,
+        message: {
+          id: messageID,
+          sessionID: session.id,
+          role: "user",
+          time: { created: Date.now() },
+          agent,
+          model: { ...model, variant },
+        },
+        parts: optimisticParts,
+      })
       clearInput()
       PromptRequestDebug.update(debugID, {
         sessionID: session.id,
@@ -522,15 +553,26 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         message: `Calling ${executionTarget} CLI`,
       })
       client.session
-        .externalRun({
-          sessionID: session.id,
-          agent,
-          target: executionTarget,
-          prompt: text,
-          model,
-          variant,
-        })
-        .then(() => {
+        .externalRun(
+          {
+            sessionID: session.id,
+            messageID,
+            agent,
+            target: executionTarget,
+            prompt: text,
+            model,
+            variant,
+          },
+          { throwOnError: true },
+        )
+        .then((result) => {
+          if (!result.data?.info) throw new Error(`${externalTargetLabels[executionTarget]} returned no assistant response.`)
+          sync.session.optimistic.add({
+            directory: sessionDirectory,
+            sessionID: session.id,
+            message: result.data.info,
+            parts: result.data.parts,
+          })
           PromptRequestDebug.finish(debugID, { stage: "sent", message: "External command completed" })
         })
         .catch((err) => {
@@ -538,6 +580,11 @@ export function createPromptSubmit(input: PromptSubmitInput) {
           showToast({
             title: language.t("prompt.toast.shellSendFailed.title"),
             description: errorMessage(err),
+          })
+          sync.session.optimistic.remove({
+            directory: sessionDirectory,
+            sessionID: session.id,
+            messageID,
           })
           restoreInput()
         })
@@ -629,7 +676,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     }
 
     const commentItems = context.filter((item) => item.type === "file" && !!item.comment?.trim())
-    const messageID = Identifier.ascending("message")
 
     const removeOptimisticMessage = () => {
       sync.session.optimistic.remove({

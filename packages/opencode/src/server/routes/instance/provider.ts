@@ -79,8 +79,6 @@ const MOONSHOT_MODELS: Record<string, ModelsDev.Model> = {
   },
 }
 
-const chatOnlyProviderIDs = new Set(["moonshotai-cn"])
-
 function appendOpenAIPath(base: string, suffix: string) {
   const url = new URL(base)
   const path = url.pathname.replace(/\/+$/, "")
@@ -99,17 +97,6 @@ function appendAnthropicPath(base: string) {
   if (path.endsWith("/messages")) return url.toString()
   url.pathname = path.endsWith("/v1") ? `${path}/messages` : `${path}/v1/messages`
   return url.toString()
-}
-
-function isMoonshot(
-  input: z.infer<typeof ProviderTestInput>,
-  openaiURL: string | undefined,
-  anthropicURL: string | undefined,
-) {
-  if (chatOnlyProviderIDs.has(input.providerID)) return true
-  if (openaiURL?.includes("api.moonshot.")) return true
-  if (anthropicURL?.includes("api.moonshot.")) return true
-  return false
 }
 
 async function readMessage(res: Response) {
@@ -204,12 +191,6 @@ function optionUrls(value: unknown) {
   }
 }
 
-function supportsOpenAIResponses(input: z.infer<typeof ProviderTestInput>, openaiURL: string | undefined) {
-  if (input.providerID === "openai") return true
-  if (openaiURL?.includes("api.openai.com")) return true
-  return false
-}
-
 async function settleAgent(agent: AgentID, input: Promise<AgentResult>): Promise<AgentResult> {
   return input.catch((err: unknown) => ({
     agent,
@@ -225,18 +206,23 @@ async function testAgents(
   openaiURL: string | undefined,
   anthropicURL: string | undefined,
 ) {
-  const useChatForCodex = isMoonshot(input, openaiURL, anthropicURL)
+  const useAnthropicThinking = Boolean(
+    input.providerID === "moonshotai-cn" ||
+      openaiURL?.includes("api.moonshot.") ||
+      anthropicURL?.includes("api.moonshot."),
+  )
+  const useBridgeForCodex = Provider.codexBridgeRequired(model, openaiURL)
   const agents = await Promise.all(
     [
       anthropicURL
-        ? settleAgent("claude_code", testClaudeCode(model.api.id, key, anthropicURL, useChatForCodex))
+        ? settleAgent("claude_code", testClaudeCode(model.api.id, key, anthropicURL, useAnthropicThinking))
         : missingAgent("claude_code", "Anthropic URL is required"),
       openaiURL
         ? settleAgent(
             "codex",
-            !useChatForCodex && supportsOpenAIResponses(input, openaiURL)
-              ? testOpenAIResponses("codex", model.api.id, key, openaiURL)
-              : testOpenAIChat("codex", model.api.id, key, openaiURL),
+            useBridgeForCodex
+              ? testOpenAIChat("codex", model.api.id, key, openaiURL)
+              : testOpenAIResponses("codex", model.api.id, key, openaiURL),
           )
         : missingAgent("codex", "OpenAI URL is required"),
       openaiURL

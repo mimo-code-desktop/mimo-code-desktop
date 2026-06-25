@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron"
-import type { ElectronAPI, InitStep, SqliteMigrationProgress } from "./types"
+import type { ElectronAPI, InitStep } from "./types"
 
 const api: ElectronAPI = {
   killSidecar: () => ipcRenderer.invoke("kill-sidecar"),
@@ -31,11 +31,6 @@ const api: ElectronAPI = {
   storeLength: (name) => ipcRenderer.invoke("store-length", name),
 
   getWindowCount: () => ipcRenderer.invoke("get-window-count"),
-  onSqliteMigrationProgress: (cb) => {
-    const handler = (_: unknown, progress: SqliteMigrationProgress) => cb(progress)
-    ipcRenderer.on("sqlite-migration-progress", handler)
-    return () => ipcRenderer.removeListener("sqlite-migration-progress", handler)
-  },
   onMenuCommand: (cb) => {
     const handler = (_: unknown, id: string) => cb(id)
     ipcRenderer.on("menu-command", handler)
@@ -66,6 +61,8 @@ const api: ElectronAPI = {
   checkUpdate: () => ipcRenderer.invoke("check-update"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
   setBackgroundColor: (color: string) => ipcRenderer.invoke("set-background-color", color),
+  getProgrammingAgents: (options) => ipcRenderer.invoke("get-programming-agents", options),
+  updateProgrammingAgent: (id) => ipcRenderer.invoke("update-programming-agent", id),
 }
 
 contextBridge.exposeInMainWorld("api", api)

@@ -4,8 +4,9 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
 import type {
   InitStep,
+  ProgrammingAgentId,
+  ProgrammingAgentsResult,
   ServerReadyData,
-  SqliteMigrationProgress,
   TitlebarTheme,
   WindowConfig,
   WslConfig,
@@ -38,6 +39,8 @@ type Deps = {
   checkUpdate: () => Promise<{ updateAvailable: boolean; version?: string }>
   installUpdate: () => Promise<void> | void
   setBackgroundColor: (color: string) => void
+  getProgrammingAgents: (options?: { refresh?: boolean }) => Promise<ProgrammingAgentsResult>
+  updateProgrammingAgent: (id: ProgrammingAgentId) => Promise<void>
 }
 
 export function registerIpcHandlers(deps: Deps) {
@@ -69,6 +72,12 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("check-update", () => deps.checkUpdate())
   ipcMain.handle("install-update", () => deps.installUpdate())
   ipcMain.handle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
+  ipcMain.handle("get-programming-agents", (_event: IpcMainInvokeEvent, options?: { refresh?: boolean }) =>
+    deps.getProgrammingAgents(options),
+  )
+  ipcMain.handle("update-programming-agent", (_event: IpcMainInvokeEvent, id: ProgrammingAgentId) =>
+    deps.updateProgrammingAgent(id),
+  )
   ipcMain.handle("store-get", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     const store = getStore(name)
     const value = store.get(key)
@@ -189,10 +198,6 @@ export function registerIpcHandlers(deps: Deps) {
     if (!win) return
     setTitlebar(win, theme)
   })
-}
-
-export function sendSqliteMigrationProgress(win: BrowserWindow, progress: SqliteMigrationProgress) {
-  win.webContents.send("sqlite-migration-progress", progress)
 }
 
 export function sendMenuCommand(win: BrowserWindow, id: string) {

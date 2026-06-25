@@ -282,8 +282,36 @@
   color: var(--text-base);
   line-height: var(--line-height-normal);
 
+  [data-component="collapsible"][data-scope="reasoning"] {
+    gap: 4px;
+
+    > [data-slot="collapsible-trigger"] {
+      width: fit-content;
+      height: 28px;
+      color: var(--text-weak);
+    }
+  }
+
+  [data-slot="reasoning-part-trigger"] {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  [data-slot="reasoning-part-label"] {
+    font-size: var(--font-size-small);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-large);
+    color: var(--text-weak);
+  }
+
+  [data-slot="reasoning-part-content"] {
+    padding-left: 24px;
+  }
+
   [data-component="markdown"] {
-    margin-top: 16px;
+    margin-top: 0;
     font-style: normal;
     font-size: 13px;
     color: var(--text-weak);

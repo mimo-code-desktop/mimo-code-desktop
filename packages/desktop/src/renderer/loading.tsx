@@ -6,42 +6,34 @@ import { Splash } from "@mimo-ai/ui/logo"
 import { Progress } from "@mimo-ai/ui/progress"
 import "./styles.css"
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
-import type { InitStep, SqliteMigrationProgress } from "../preload/types"
+import type { InitStep } from "../preload/types"
 
 const root = document.getElementById("root")!
-const lines = ["Just a moment...", "Migrating your database", "This may take a couple of minutes"]
+const lines = ["Starting local MiMo Code...", "Waiting for mimo serve", "This may take a moment"]
 const delays = [3000, 9000]
 
 render(() => {
   const [step, setStep] = createSignal<InitStep | null>(null)
   const [line, setLine] = createSignal(0)
-  const [percent, setPercent] = createSignal(0)
 
   const phase = createMemo(() => step()?.phase)
 
   const value = createMemo(() => {
     if (phase() === "done") return 100
-    return Math.max(25, Math.min(100, percent()))
+    return 35
   })
 
-  window.api.awaitInitialization((next) => setStep(next as InitStep)).catch(() => undefined)
+  window.api
+    .awaitInitialization((next) => setStep(next as InitStep))
+    .then(() => setStep({ phase: "done" }))
+    .catch(() => undefined)
 
   onMount(() => {
     setLine(0)
-    setPercent(0)
 
     const timers = delays.map((ms, i) => setTimeout(() => setLine(i + 1), ms))
 
-    const listener = window.api.onSqliteMigrationProgress((progress: SqliteMigrationProgress) => {
-      if (progress.type === "InProgress") setPercent(Math.max(0, Math.min(100, progress.value)))
-      if (progress.type === "Done") {
-        setPercent(100)
-        setStep({ phase: "done" })
-      }
-    })
-
     onCleanup(() => {
-      listener()
       timers.forEach(clearTimeout)
     })
   })
@@ -55,8 +47,7 @@ render(() => {
 
   const status = createMemo(() => {
     if (phase() === "done") return "All done"
-    if (phase() === "sqlite_waiting") return lines[line()]
-    return "Just a moment..."
+    return lines[line()]
   })
 
   return (
@@ -72,7 +63,7 @@ render(() => {
             <Progress
               value={value()}
               class="w-20 [&_[data-slot='progress-track']]:h-1 [&_[data-slot='progress-track']]:border-0 [&_[data-slot='progress-track']]:rounded-none [&_[data-slot='progress-track']]:bg-surface-weak [&_[data-slot='progress-fill']]:rounded-none [&_[data-slot='progress-fill']]:bg-icon-warning-base"
-              aria-label="Database migration progress"
+              aria-label="Server startup progress"
               getValueLabel={({ value }) => `${Math.round(value)}%`}
             />
           </div>

@@ -2494,7 +2494,10 @@ export default function Layout(props: ParentProps) {
                 <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
                   <Show when={state.mainView === "settings"} fallback={props.children}>
                     <Suspense fallback={<div class="size-full" />}>
-                      <SettingsContent value={() => state.settingsSection} />
+                      <SettingsContent
+                        value={() => state.settingsSection}
+                        onChange={(value) => setState("settingsSection", value)}
+                      />
                     </Suspense>
                   </Show>
                 </Show>

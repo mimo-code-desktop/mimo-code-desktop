@@ -45,6 +45,13 @@ const groupKey: Record<KeybindGroup, GroupKey> = {
   Prompt: "settings.shortcuts.group.prompt",
 }
 
+function showInShortcuts(id: string) {
+  if (id.startsWith("language.")) return false
+  if (id.startsWith("theme.set.")) return false
+  if (id.startsWith("theme.scheme.") && id !== "theme.scheme.cycle") return false
+  return true
+}
+
 function groupFor(id: string): KeybindGroup {
   if (id === PALETTE_ID) return "General"
   if (id.startsWith("terminal.")) return "Terminal"
@@ -117,23 +124,26 @@ function keybinds(value: unknown): KeybindMap {
   return value as KeybindMap
 }
 
-function listFor(command: CommandContext, map: KeybindMap, palette: string) {
+function listFor(command: CommandContext, map: KeybindMap, palette: string, includeHidden = false) {
   const out = new Map<string, KeybindMeta>()
   out.set(PALETTE_ID, { title: palette, group: "General" })
 
   for (const opt of command.catalog) {
     if (opt.id.startsWith("suggested.")) continue
+    if (!includeHidden && !showInShortcuts(opt.id)) continue
     out.set(opt.id, { title: opt.title, group: groupFor(opt.id) })
   }
 
   for (const opt of command.options) {
     if (opt.id.startsWith("suggested.")) continue
+    if (!includeHidden && !showInShortcuts(opt.id)) continue
     out.set(opt.id, { title: opt.title, group: groupFor(opt.id) })
   }
 
   for (const [id, value] of Object.entries(map)) {
     if (typeof value !== "string") continue
     if (out.has(id)) continue
+    if (!includeHidden && !showInShortcuts(id)) continue
     out.set(id, { title: id, group: groupFor(id) })
   }
 
@@ -232,7 +242,7 @@ function useKeyCapture(input: {
       for (const sig of signatures(next)) {
         for (const item of input.used().get(sig) ?? []) {
           if (item.id === id) continue
-          conflicts.set(item.id, item.title)
+          conflicts.set(item.id, item.title || item.id)
         }
       }
 
@@ -301,6 +311,11 @@ export const SettingsKeybinds: Component = () => {
     return listFor(command, map(), language.t("command.palette"))
   })
 
+  const conflictList = createMemo(() => {
+    language.locale()
+    return listFor(command, map(), language.t("command.palette"), true)
+  })
+
   const title = (id: string) => list().get(id)?.title ?? ""
 
   const grouped = createMemo(() => groupedFor(list()))
@@ -345,10 +360,10 @@ export const SettingsKeybinds: Component = () => {
       return meta?.keybind
     }
 
-    for (const id of list().keys()) {
+    for (const id of conflictList().keys()) {
       if (id === PALETTE_ID) continue
       for (const sig of signatures(valueFor(id))) {
-        add(sig, { id, title: title(id) })
+        add(sig, { id, title: title(id) || conflictList().get(id)?.title || id })
       }
     }
 
@@ -370,9 +385,9 @@ export const SettingsKeybinds: Component = () => {
   })
 
   return (
-    <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
+    <div class="flex h-full w-full flex-col overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--surface-stronger-non-alpha)_calc(100%_-_24px),transparent)]">
-        <div class="flex flex-col gap-4 pt-6 pb-6 max-w-[720px]">
+        <div class="flex w-full max-w-[840px] flex-col gap-4 pt-6 pb-6">
           <div class="flex items-center justify-between gap-4">
             <h2 class="text-16-medium text-text-strong">{language.t("settings.shortcuts.title")}</h2>
             <Button size="small" variant="secondary" onClick={resetAll} disabled={!hasOverrides()}>
@@ -401,7 +416,7 @@ export const SettingsKeybinds: Component = () => {
         </div>
       </div>
 
-      <div class="flex flex-col gap-8 max-w-[720px]">
+      <div class="flex w-full max-w-[840px] flex-col gap-8">
         <For each={GROUPS}>
           {(group) => (
             <Show when={(filtered().get(group) ?? []).length > 0}>

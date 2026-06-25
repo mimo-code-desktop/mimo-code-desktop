@@ -923,16 +923,48 @@ export function apiUrlForSDK(model: Pick<Model, "api" | "options">) {
   if (model.api.npm.includes("@ai-sdk/openai")) return urls.openai
 }
 
+const deepseekAnthropicURL = (url: string | undefined) => {
+  if (!url) return
+  const trimmed = url.trim().replace(/\/+$/, "")
+  if (trimmed === "https://api.deepseek.com" || trimmed === "https://api.deepseek.com/v1")
+    return "https://api.deepseek.com/anthropic"
+  return trimmed
+}
+
 export function apiUrlForExternalTarget(
-  model: Pick<Model, "api" | "options">,
+  model: Pick<Model, "api" | "options" | "providerID">,
   target: "claude" | "codex" | "opencode",
   baseURL?: string,
 ) {
   const urls = apiUrls(model)
   const configuredBaseURL = typeof baseURL === "string" && baseURL !== "" ? baseURL : undefined
-  if (target === "claude") return urls.anthropic
-  if (target === "codex") return urls.openai ?? configuredBaseURL
+  const modelURL = model.api.url.trim() !== "" ? model.api.url.trim() : undefined
+  if (target === "claude") {
+    if (urls.anthropic) return urls.anthropic
+    if (model.providerID !== "anthropic" && !model.api.npm.includes("@ai-sdk/anthropic"))
+      return model.providerID === "deepseek"
+        ? deepseekAnthropicURL(configuredBaseURL ?? modelURL)
+        : configuredBaseURL ?? modelURL
+    return
+  }
+  if (target === "codex") return urls.openai ?? configuredBaseURL ?? modelURL
   return apiUrlForSDK(model)
+}
+
+export function codexBridgeRequired(model: Pick<Model, "api" | "options" | "providerID">, baseURL?: string) {
+  const url = apiUrlForExternalTarget(model, "codex", baseURL)
+  const id = model.api.id.toLowerCase()
+  return Boolean(
+    model.providerID === "deepseek" ||
+      model.providerID === "mimo" ||
+      model.providerID === "xiaomi" ||
+      model.providerID.startsWith("xiaomi-") ||
+      model.providerID === "moonshotai-cn" ||
+      id.includes("mimo") ||
+      url?.includes("api.deepseek.com") ||
+      url?.includes("xiaomimimo.com") ||
+      url?.includes("api.moonshot."),
+  )
 }
 
 export const Info = Schema.Struct({

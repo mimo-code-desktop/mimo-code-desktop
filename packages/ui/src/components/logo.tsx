@@ -5,12 +5,30 @@ export const Mark = (props: { class?: string }) => {
     <svg
       data-component="logo-mark"
       classList={{ [props.class ?? ""]: !!props.class }}
-      viewBox="0 0 16 20"
+      viewBox="0 0 64 64"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path data-slot="logo-logo-mark-shadow" d="M12 16H4V8H12V16Z" fill="var(--icon-weak-base)" />
-      <path data-slot="logo-logo-mark-o" d="M12 4H4V16H12V4ZM16 20H0V0H16V20Z" fill="var(--icon-strong-base)" />
+      <rect x="3" y="3" width="58" height="58" rx="14" fill="#151515" />
+      <rect x="3" y="3" width="58" height="58" rx="14" stroke="#2a2a2a" stroke-width="2" />
+      <path
+        d="M14 21L27 32L14 43"
+        stroke="white"
+        stroke-width="4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M35 18L48 26L37 38"
+        stroke="white"
+        stroke-width="3.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <circle cx="35" cy="18" r="4" fill="white" />
+      <circle cx="48" cy="26" r="4" fill="white" />
+      <circle cx="37" cy="38" r="4" fill="white" />
+      <path d="M41 48H53" stroke="white" stroke-width="4" stroke-linecap="round" />
     </svg>
   )
 }
@@ -25,24 +43,26 @@ export const Splash = (props: Pick<ComponentProps<"svg">, "ref" | "class">) => {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
+      <rect x="6" y="6" width="68" height="68" rx="16" fill="#151515" />
+      <rect x="6" y="6" width="68" height="68" rx="16" stroke="#2a2a2a" stroke-width="2.5" />
       <path
-        d="M15 26 29 40 15 54"
-        stroke="var(--icon-strong-base)"
+        d="M19 27 35 40 19 53"
+        stroke="white"
         stroke-width="5"
         stroke-linecap="round"
         stroke-linejoin="round"
       />
       <path
-        d="M42 22 60 32 45 45"
-        stroke="var(--icon-strong-base)"
+        d="M44 23 60 33 47 48"
+        stroke="white"
         stroke-width="4"
         stroke-linecap="round"
         stroke-linejoin="round"
       />
-      <circle cx="42" cy="22" r="4.8" fill="var(--icon-strong-base)" />
-      <circle cx="60" cy="32" r="4.8" fill="var(--icon-strong-base)" />
-      <circle cx="45" cy="45" r="4.8" fill="var(--icon-strong-base)" />
-      <path d="M50 60H66" stroke="var(--icon-strong-base)" stroke-width="4" stroke-linecap="round" />
+      <circle cx="44" cy="23" r="4.8" fill="white" />
+      <circle cx="60" cy="33" r="4.8" fill="white" />
+      <circle cx="47" cy="48" r="4.8" fill="white" />
+      <path d="M51 59H66" stroke="white" stroke-width="4" stroke-linecap="round" />
     </svg>
   )
 }
@@ -55,24 +75,48 @@ export const Logo = (props: { class?: string }) => {
       fill="none"
       classList={{ [props.class ?? ""]: !!props.class }}
     >
-      <g>
-        <path d="M18 30H6V18H18V30Z" fill="var(--icon-weak-base)" />
-        <path d="M18 12H6V30H18V12ZM24 36H0V6H24V36Z" fill="var(--icon-base)" />
-        <path d="M48 30H36V18H48V30Z" fill="var(--icon-weak-base)" />
-        <path d="M36 30H48V12H36V30ZM54 36H36V42H30V6H54V36Z" fill="var(--icon-base)" />
-        <path d="M84 24V30H66V24H84Z" fill="var(--icon-weak-base)" />
-        <path d="M84 24H66V30H84V36H60V6H84V24ZM66 18H78V12H66V18Z" fill="var(--icon-base)" />
-        <path d="M108 36H96V18H108V36Z" fill="var(--icon-weak-base)" />
-        <path d="M108 12H96V36H90V6H108V12ZM114 36H108V12H114V36Z" fill="var(--icon-base)" />
-        <path d="M144 30H126V18H144V30Z" fill="var(--icon-weak-base)" />
-        <path d="M144 12H126V30H144V36H120V6H144V12Z" fill="var(--icon-strong-base)" />
-        <path d="M168 30H156V18H168V30Z" fill="var(--icon-weak-base)" />
-        <path d="M168 12H156V30H168V12ZM174 36H150V6H174V36Z" fill="var(--icon-strong-base)" />
-        <path d="M198 30H186V18H198V30Z" fill="var(--icon-weak-base)" />
-        <path d="M198 12H186V30H198V12ZM204 36H180V6H198V0H204V36Z" fill="var(--icon-strong-base)" />
-        <path d="M234 24V30H216V24H234Z" fill="var(--icon-weak-base)" />
-        <path d="M216 12V18H228V12H216ZM234 24H216V30H234V36H210V6H234V24Z" fill="var(--icon-strong-base)" />
-      </g>
+      <rect y="0" width="42" height="42" rx="9" fill="#151515" />
+      <rect x="1" y="1" width="40" height="40" rx="8" stroke="#2a2a2a" stroke-width="2" />
+      <path
+        d="M9 14L18 21L9 28"
+        stroke="white"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M23 12L32 18L24 26"
+        stroke="white"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <circle cx="23" cy="12" r="3" fill="white" />
+      <circle cx="32" cy="18" r="3" fill="white" />
+      <circle cx="24" cy="26" r="3" fill="white" />
+      <path d="M28 32H36" stroke="white" stroke-width="3" stroke-linecap="round" />
+      <text
+        x="54"
+        y="29"
+        fill="var(--icon-strong-base)"
+        font-family="Inter, ui-sans-serif, system-ui, sans-serif"
+        font-size="26"
+        font-weight="800"
+        letter-spacing="0"
+      >
+        MIMO
+      </text>
+      <text
+        x="130"
+        y="29"
+        fill="var(--icon-base)"
+        font-family="Inter, ui-sans-serif, system-ui, sans-serif"
+        font-size="26"
+        font-weight="800"
+        letter-spacing="0"
+      >
+        CODE
+      </text>
     </svg>
   )
 }

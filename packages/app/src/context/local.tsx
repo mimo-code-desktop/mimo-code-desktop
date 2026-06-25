@@ -42,13 +42,22 @@ const codexModelIDs = new Set([
   "gpt-5.5-codex",
   "gpt-5.5-mini",
 ])
-
-const targetModelAllowed = (target: ModelTarget, model: ModelKey & { api?: { id?: string } }) => {
+const targetNativeModel = (target: ModelTarget, model: ModelKey & { api?: { id?: string } }) => {
   if (target === "mimo") return true
   if (target === "opencode") return true
   if (target === "claude") return model.providerID === "anthropic"
   if (target === "codex")
     return model.providerID === "openai" && (model.modelID.includes("codex") || codexModelIDs.has(model.api?.id ?? ""))
+  return true
+}
+
+const targetModelAllowed = (target: ModelTarget, model: ModelKey & { api?: { npm?: string } }) => {
+  if (target === "claude") {
+    if (model.providerID === "anthropic") return true
+    if (model.providerID === "deepseek") return true
+    return model.api?.npm?.includes("@ai-sdk/anthropic") || false
+  }
+  if (target === "codex") return true
   return true
 }
 
@@ -193,7 +202,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             api: item.api,
           })),
         )
-        .filter((item) => targetModelAllowed(target, item))
+        .filter((item) => targetNativeModel(target, item))
         .toSorted((a, b) => {
           if (target === "codex") {
             const rank = ["gpt-5.5-codex", "gpt-5.5", "gpt-5.5-mini", "gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.1-codex", "gpt-5.1-codex-max"]

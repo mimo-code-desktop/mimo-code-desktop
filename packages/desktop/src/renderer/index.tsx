@@ -234,6 +234,14 @@ const createPlatform = (): Platform => {
       return window.api.checkAppExists(appName)
     },
 
+    getProgrammingAgents: async (options) => {
+      return window.api.getProgrammingAgents(options)
+    },
+
+    updateProgrammingAgent: async (id) => {
+      await window.api.updateProgrammingAgent(id)
+    },
+
     async readClipboardImage() {
       const image = await window.api.readClipboardImage().catch(() => null)
       if (!image) return null

@@ -10,10 +10,16 @@ const optimistic: Array<{
   directory?: string
   sessionID?: string
   message: {
+    id: string
+    role: "user" | "assistant"
     agent: string
     model: { providerID: string; modelID: string }
     variant?: string
+    parentID?: string
+    modelID?: string
+    providerID?: string
   }
+  parts?: Array<{ type: string; text?: string }>
 }> = []
 const optimisticSeeded: boolean[] = []
 const storedSessions: Record<string, Array<{ id: string; title?: string }>> = {}
@@ -22,6 +28,7 @@ const sentShell: string[] = []
 const sentExternalRun: Array<{
   directory: string
   sessionID?: string
+  messageID?: string
   agent?: string
   target?: string
   prompt?: string
@@ -57,6 +64,7 @@ const clientFor = (directory: string) => {
       promptAsync: async () => ({ data: undefined }),
       externalRun: async (input: {
         sessionID?: string
+        messageID?: string
         agent?: string
         target?: string
         prompt?: string
@@ -170,9 +178,28 @@ beforeAll(async () => {
           add: (value: {
             directory?: string
             sessionID?: string
-            message: { agent: string; model: { providerID: string; modelID: string; variant?: string } }
+            message: {
+              id: string
+              role: "user" | "assistant"
+              agent: string
+              model?: { providerID: string; modelID: string; variant?: string }
+              variant?: string
+              parentID?: string
+              modelID?: string
+              providerID?: string
+            }
+            parts?: Array<{ type: string; text?: string }>
           }) => {
-            optimistic.push(value)
+            optimistic.push({
+              ...value,
+              message: {
+                ...value.message,
+                model: value.message.model ?? {
+                  providerID: value.message.providerID ?? "",
+                  modelID: value.message.modelID ?? "",
+                },
+              },
+            })
             optimisticSeeded.push(
               !!value.directory &&
                 !!value.sessionID &&
@@ -270,6 +297,7 @@ describe("prompt submit worktree selection", () => {
       {
         directory: "/repo/main",
         sessionID: "session-1",
+        messageID: expect.any(String),
         agent: "agent",
         target: "claude",
         prompt: "ls",
@@ -277,7 +305,16 @@ describe("prompt submit worktree selection", () => {
         variant: undefined,
       },
     ])
-    expect(optimistic).toHaveLength(0)
+    expect(optimistic).toHaveLength(1)
+    expect(optimistic[0]).toMatchObject({
+      directory: "/repo/main",
+      sessionID: "session-1",
+      message: {
+        role: "user",
+        agent: "agent",
+        model: { providerID: "provider", modelID: "model" },
+      },
+    })
   })
 
   test("reads the latest worktree accessor value per submit", async () => {

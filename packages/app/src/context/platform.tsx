@@ -8,6 +8,23 @@ type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }
 type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: string[]; extensions?: string[] }
 type SaveFilePickerOptions = { title?: string; defaultPath?: string }
 type UpdateInfo = { updateAvailable: boolean; version?: string }
+export type ProgrammingAgentId = "mimo" | "codex" | "claude" | "opencode"
+export type ProgrammingAgentStatus = {
+  id: ProgrammingAgentId
+  name: string
+  command: string
+  path?: string
+  packageName: string
+  installUrl: string
+  installed: boolean
+  currentVersion?: string
+  latestVersion?: string
+  update: "latest" | "outdated" | "not_installed" | "unknown"
+}
+export type ProgrammingAgentsResult = {
+  agents: ProgrammingAgentStatus[]
+  refreshing: boolean
+}
 
 export type Platform = {
   /** Platform discriminator */
@@ -84,6 +101,12 @@ export type Platform = {
 
   /** Check if an editor app exists (desktop only) */
   checkAppExists?(appName: string): Promise<boolean>
+
+  /** Check locally installed programming agent CLIs (desktop only) */
+  getProgrammingAgents?(options?: { refresh?: boolean }): Promise<ProgrammingAgentsResult>
+
+  /** Update a locally installed programming agent CLI (desktop only) */
+  updateProgrammingAgent?(id: ProgrammingAgentId): Promise<void>
 
   /** Read image from clipboard (desktop only) */
   readClipboardImage?(): Promise<File | null>

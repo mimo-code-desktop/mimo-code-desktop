@@ -3,12 +3,13 @@ import { Dialog } from "@mimo-ai/ui/dialog"
 import { Icon } from "@mimo-ai/ui/icon"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
+import { SettingsAgents } from "./settings-agents"
 import { SettingsGeneral } from "./settings-general"
 import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsMcp } from "./settings-mcp"
 import { SettingsProviders } from "./settings-providers"
 
-export type SettingsSection = "general" | "shortcuts" | "providers" | "mcp"
+export type SettingsSection = "general" | "shortcuts" | "agents" | "providers" | "mcp"
 
 export const SettingsNav: Component<{
   value: Accessor<SettingsSection>
@@ -23,10 +24,13 @@ export const SettingsNav: Component<{
       type="button"
       classList={{
         [itemClass]: true,
-        "bg-surface-base-active text-text-strong": props.value() === value,
-        "text-text-base": props.value() !== value,
+        "bg-surface-base-active text-text-strong":
+          props.value() === value || (value === "general" && props.value() === "shortcuts"),
+        "text-text-base": props.value() !== value && !(value === "general" && props.value() === "shortcuts"),
       }}
-      aria-current={props.value() === value ? "page" : undefined}
+      aria-current={
+        props.value() === value || (value === "general" && props.value() === "shortcuts") ? "page" : undefined
+      }
       onClick={() => props.onChange(value)}
     >
       <Icon name={icon} />
@@ -41,7 +45,7 @@ export const SettingsNav: Component<{
           <div class="w-full pl-1 text-12-medium text-text-weak">{language.t("settings.section.desktop")}</div>
           <div class="flex w-full flex-col gap-1.5">
             {item("general", "sliders", language.t("settings.tab.general"))}
-            {item("shortcuts", "keyboard", language.t("settings.tab.shortcuts"))}
+            {item("agents", "code", language.t("settings.agents.title"))}
           </div>
         </div>
 
@@ -62,15 +66,21 @@ export const SettingsNav: Component<{
   )
 }
 
-export const SettingsContent: Component<{ value: Accessor<SettingsSection> }> = (props) => {
+export const SettingsContent: Component<{
+  value: Accessor<SettingsSection>
+  onChange: (value: SettingsSection) => void
+}> = (props) => {
   return (
     <div class="settings-dialog flex min-h-0 w-full flex-1 self-stretch overflow-hidden bg-surface-stronger-non-alpha">
       <Switch>
         <Match when={props.value() === "general"}>
-          <SettingsGeneral />
+          <SettingsGeneral onOpenShortcuts={() => props.onChange("shortcuts")} />
         </Match>
         <Match when={props.value() === "shortcuts"}>
           <SettingsKeybinds />
+        </Match>
+        <Match when={props.value() === "agents"}>
+          <SettingsAgents />
         </Match>
         <Match when={props.value() === "providers"}>
           <SettingsProviders />
@@ -91,7 +101,7 @@ export const SettingsPanel: Component = () => {
       <div class="w-[200px] min-w-[200px]">
         <SettingsNav value={section} onChange={setSection} />
       </div>
-      <SettingsContent value={section} />
+      <SettingsContent value={section} onChange={setSection} />
     </div>
   )
 }

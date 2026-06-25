@@ -112,7 +112,7 @@ const defaultSettings: Settings = {
     showSearch: false,
     showStatus: false,
     showTerminal: false,
-    showReasoningSummaries: false,
+    showReasoningSummaries: true,
     shellToolPartsExpanded: false,
     editToolPartsExpanded: false,
   },
@@ -148,10 +148,37 @@ function withFallback<T>(read: () => T | undefined, fallback: T) {
   return createMemo(() => read() ?? fallback)
 }
 
+function record(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value)
+}
+
+function migrateSettings(value: unknown) {
+  if (!record(value)) return value
+
+  const migrations = record(value.migrations) ? value.migrations : {}
+  if (migrations.reasoningSummariesDefault) return value
+
+  const general = record(value.general) ? value.general : {}
+  return {
+    ...value,
+    general: {
+      ...general,
+      showReasoningSummaries: general.showReasoningSummaries === false ? true : general.showReasoningSummaries,
+    },
+    migrations: {
+      ...migrations,
+      reasoningSummariesDefault: true,
+    },
+  }
+}
+
 export const { use: useSettings, provider: SettingsProvider } = createSimpleContext({
   name: "Settings",
   init: () => {
-    const [store, setStore, _, ready] = persisted("settings.v3", createStore<Settings>(defaultSettings))
+    const [store, setStore, _, ready] = persisted(
+      { key: "settings.v3", migrate: migrateSettings },
+      createStore<Settings>(defaultSettings),
+    )
 
     createEffect(() => {
       if (typeof document === "undefined") return

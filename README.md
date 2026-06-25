@@ -1,182 +1,107 @@
-<h1 align="center">MiMoCode</h1>
+# Mimo Code Desktop
 
-<p align="center">
-  <img src="assets/readme/mimocode-banner.png" alt="MiMoCode" width="700">
-</p>
+**A desktop workspace for running multiple coding tools and connecting multiple AI providers.**
 
-<p align="center"><strong>One desktop entry point for MiMoCode, AI coding agents, and multiple AI providers.</strong></p>
+[中文](./README.zh.md) | English
 
-<p align="center">
-  <a href="README.zh.md">中文</a> | English
-</p>
+## Overview
 
-<p align="center">
-  <a href="https://mimo.xiaomi.com/en/mimocode">Website</a> | <a href="https://mimo.xiaomi.com/en/blog/mimo-code-long-horizon">Blog</a>
-</p>
+Mimo Code Desktop is a new AI coding workspace for developers who want one place to launch, compare, and coordinate different programming tools. Modern AI-assisted development is not solved by one model, one CLI, or one agent. A task that blocks one tool may be solved quickly by another, and provider choice often matters as much as prompt quality.
 
----
+This project is designed around that reality. It provides a desktop-first environment where coding agents, terminal tools, local commands, MCP integrations, and model providers can work together in one development flow.
 
-## MiMo Code Desktop
+Use it as:
 
-This repository packages MiMoCode as an installable Electron desktop app and a unified workspace for AI-assisted development.
+- A desktop entry point for AI-assisted coding
+- A control surface for multiple programming tools and coding agents
+- A provider integration layer for mainstream LLM vendors and OpenAI-compatible APIs
+- A local workspace for project context, task progress, checkpoints, and repeatable workflows
 
-AI coding work is rarely solved by a single perfect model or agent. Sometimes an agent gets stuck on a feature, a bug, or a refactor for hours, then the same task is suddenly solved after switching to another model or another code agent, for example from Codex to Claude Code. The hard part for developers is the constant context switching: different CLIs, different accounts, different model settings, and repeated setup every time you want to try another path.
+## Core Features
 
-MiMo Code Desktop is built around that pain point. It makes MiMoCode easier to use in everyday development while giving you one place to compare, connect, and switch between different AI coding tools and model providers. It is designed as a provider-friendly platform: you can start quickly with MiMo Auto, sign in to the Xiaomi MiMo Platform, import existing Claude Code authentication, or add OpenAI-compatible providers for your preferred model stack.
+### Multiple Coding Tools
 
-With one desktop entry point, you can:
+Connect and call different coding tools from one workspace. The goal is to make it easy to switch between agents, CLIs, local commands, and external tool integrations when the current path gets stuck or a different tool is better suited to the task.
 
-- Use MiMoCode with a smoother local desktop experience
-- Try another model or code agent when the current one gets stuck
-- Compare and adopt tools such as Codex and Claude Code in the same workflow
-- Connect mainstream AI providers and OpenAI-compatible APIs
-- Keep project memory, context reconstruction, agents, and task progress close to your coding environment
+### Multiple AI Providers
+
+Configure and use different AI providers from the same project. Mimo Code Desktop is built for provider flexibility, including OpenAI-compatible endpoints and other model backends that can be routed through the workspace.
+
+### Desktop Workflow
+
+The Electron desktop app keeps AI coding work close to your editor and project files. It is intended for everyday development rather than one-off demos: inspect context, run tools, manage sessions, and keep progress visible.
+
+### Project Context
+
+The workspace is built to preserve useful project knowledge across sessions, including memory, task progress, checkpoints, and notes. This helps agents resume work without repeatedly relearning the same repository.
+
+### Agent-Oriented Development
+
+The underlying system supports agent modes, subagents, tool permissions, MCP servers, and autonomous development loops. These pieces make it possible to break down larger tasks while keeping the work grounded in the local codebase.
+
+### Extensible Configuration
+
+Project and user configuration can control provider selection, models, agent behavior, permissions, MCP connections, keybindings, and other workflow details.
+
+## Quick Start
+
+Install dependencies:
 
 ```bash
 bun install
+```
+
+Run the desktop app in development mode:
+
+```bash
 bun run dev:desktop
+```
+
+Run the terminal coding experience:
+
+```bash
+bun run dev
+```
+
+Build the desktop app:
+
+```bash
 bun --cwd packages/desktop build
 bun --cwd packages/desktop package:mac
 ```
 
-Local macOS builds are written to `packages/desktop/dist/`. The V1 desktop spec and implementation notes live in `docs/desktop-spec.md` and `docs/implementation-plan.md`.
-
----
-
-MiMoCode is a terminal-native AI coding assistant. It can read and write code, run commands, manage Git, and use a persistent memory system to keep a deep understanding of your project across sessions while continuously improving itself.
-
-MiMo Auto is built in as a free-for-limited-time channel, so you can start with zero configuration. MiMoCode also supports mainstream LLM provider APIs and OpenAI-compatible custom providers.
-
----
-
-## Quick Start
-
-```bash
-# One-line install
-curl -fsSL https://mimo.xiaomi.com/install | bash
-
-# Or install via npm
-npm install -g @mimo-ai/cli
-```
-
-The first launch guides you through configuration automatically. Supported options:
-- **MiMo Auto (free for a limited time)** — anonymous channel, zero configuration
-- **Xiaomi MiMo Platform** — OAuth login
-- **Import from Claude Code** — migrate existing authentication in one step
-- **Custom Provider** — add any OpenAI-compatible API in the TUI
-
----
-
-## Core Features
-
-### Desktop AI Coding Hub
-
-MiMo Code Desktop brings MiMoCode, external coding assistants, and AI providers into one place. It is built for developers who do not want to jump between many tools just to find the model or agent that can finish the current task. Start with MiMoCode, compare tools like Codex and Claude Code when needed, and route work through the provider or model that best fits the problem.
-
-### Multiple Agents
-
-| Agent | Description |
-|--------|------|
-| **build** | Default. Full tool permissions for development |
-| **plan** | Read-only analysis mode for code exploration and solution design |
-| **compose** | Orchestration mode for specs-driven development and skill-driven workflows |
-
-Press `Tab` to switch between primary agents. Subagents are created by the system as needed.
-
-### Persistent Memory
-
-Cross-session memory powered by SQLite FTS5 full-text search:
-
-- **Project memory** (`MEMORY.md`) — persistent project knowledge, rules, and architecture decisions
-- **Session checkpoint** (`checkpoint.md`) — structured state snapshots maintained automatically by the checkpoint-writer subagent
-- **Scratch notes** (`notes.md`) — temporary note area for agents
-- **Task progress** (`tasks/<id>/progress.md`) — per-task logs
-
-Memory is injected automatically when a session resumes, so the agent does not need to relearn project context.
-
-### Intelligent Context Management
-
-- **Automatic checkpoints** — decides when to save session state based on the model context window
-- **Context reconstruction** — when context approaches the limit, rebuilds it from the latest checkpoint, project memory, task progress, and retained recent messages so the agent can continue the current task
-- **Budgeted injection** — uses a token budget to control how much checkpoint, memory, and notes content enters context, with importance ranking
-
-### Task Tracking
-
-A tree-shaped task system (`T1`, `T1.1`, `T1.2`, …) that integrates automatically with the checkpoint system, so task progress is preserved when sessions resume.
-
-### Subagent System
-
-The primary agent can create subagents on demand. Subagents share the current session context and can work in parallel, with lifecycle tracking, cancellation, and background execution.
-
-### Goal / Stop Condition
-
-The `/goal` command sets a stopping condition for a session. When the agent tries to stop, an independent judge model evaluates the conversation to decide whether the condition is truly satisfied — preventing premature "optimistic stops" during autonomous work.
-
-### Compose Mode
-
-Compose mode provides a structured workflow for specs-driven development. It includes built-in skills for planning, execution, code review, TDD, debugging, verification, and merging — orchestrating the full lifecycle from spec to shipped code.
-
-### Voice Input
-
-Real-time streaming voice input powered by TenVAD and MiMo ASR. Activate with `/voice`, then speak — audio is segmented by pauses and transcribed incrementally into the input. Available for MiMo logged-in users.
-
-### Dream & Distill
-
-- **`/dream`** — scans recent session traces, extracts persistent knowledge into project memory, and removes outdated entries
-- **`/distill`** — discovers repeated manual workflows in recent work and packages high-confidence candidates into reusable skills, subagents, or commands
-
----
+Local macOS builds are written to `packages/desktop/dist/`.
 
 ## Configuration
 
-MiMoCode is configured via `.mimocode/mimocode.json` in the project directory (or `~/.config/mimocode/mimocode.json` globally). Key options include:
+Project configuration lives under the repository configuration directory and can be extended for local workflows. Common configuration areas include:
 
-- Provider and model selection
-- Agent permissions and custom agents
-- Checkpoint and memory behavior
+- AI provider and model selection
+- OpenAI-compatible custom endpoints
+- Coding tool and agent permissions
 - MCP server connections
-- Keybindings and theme
-
-Max Mode (parallel best-of-N reasoning with judge selection) can be enabled via `experimental.maxMode` in the config.
-
----
+- Checkpoint, memory, and context behavior
+- Keybindings and theme settings
 
 ## Development
 
+Useful commands:
+
 ```bash
-bun install              # Install dependencies
-bun run dev              # Run in development mode
-bun turbo typecheck      # Type check
+bun install
+bun run dev:desktop
+bun run dev
+bun --cwd packages/desktop typecheck
 ```
 
----
+Type checks and tests should be run from the relevant package directory rather than the repository root.
 
 ## Relationship to OpenCode
 
-MiMoCode is built as a fork of [OpenCode](https://github.com/anomalyco/opencode). It keeps all core OpenCode capabilities (multiple providers, TUI, LSP, MCP, plugins) and adds persistent memory, intelligent context management, subagent orchestration, goal-driven autonomous loops, compose workflows, and self-improvement via dream/distill.
-
----
-
-## Community
-
-Scan the QR code to join the community group chat:
-
-<p align="center">
-  <img src="assets/readme/community-qrcode.jpg" alt="Community group chat QR code" width="240">
-</p>
-
----
+Mimo Code Desktop builds on [OpenCode](https://github.com/anomalyco/opencode) and preserves upstream license notices in [NOTICE](./NOTICE). This project extends that foundation with a desktop-focused workflow, multi-tool coordination, provider integration, persistent project context, and agent-oriented development features.
 
 ## License
 
-MiMoCode source code is available for noncommercial use, modification, and
-redistribution under the [PolyForm Noncommercial License 1.0.0](./LICENSE).
-Commercial use requires a separate written commercial license from the copyright
-holder. Contact the project maintainers before using MiMoCode commercially.
+Copyright (c) 2026 Carp Choi.
 
-MiMoCode is based on OpenCode. Upstream MIT License notices are preserved in
-[NOTICE](./NOTICE).
-
-Use of MiMoCode is also subject to the [Use Restrictions](./USE_RESTRICTIONS.md).
-Use of Xiaomi MiMo-hosted services is subject to the [MiMo Terms of Service](https://platform.xiaomimimo.com/docs/terms/user-agreement).
-Use of the MiMo name, logo, and trademarks is subject to the MiMo Trademark Policy.
+This project is available for noncommercial use under the [PolyForm Noncommercial License 1.0.0](./LICENSE). Commercial use is not permitted without separate written permission from Carp Choi.

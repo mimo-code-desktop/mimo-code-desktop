@@ -19,6 +19,7 @@ import { InstanceState } from "@/effect"
 import { Snapshot } from "@/snapshot"
 import { Command } from "@/command"
 import { Log, Process } from "@/util"
+import { errorMessage } from "@/util/error"
 import { ActorRegistry } from "@/actor/registry"
 import { TaskRegistry } from "@/task/registry"
 import { Task } from "@/task/schema"
@@ -34,6 +35,7 @@ import { jsonRequest, runRequest } from "./trace"
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
+import { startCodexBridge } from "./codex-bridge"
 
 const log = Log.create({ service: "server" })
 
@@ -64,20 +66,121 @@ type ExternalRunUpdate = {
   status?: string
 }
 
-export function externalRunCommand(input: z.infer<typeof ExternalRunInput>, ctx: { directory: string }) {
-  if (input.target === "claude") return ["claude", "-p", "--model", input.model.modelID, input.prompt]
-  if (input.target === "codex") {
-    return ["codex", "exec", "-m", input.model.modelID, "-C", ctx.directory, input.prompt]
+const EXTERNAL_RUN_TIMEOUT = 10 * 60 * 1000
+const CODEX_EXTERNAL_PROVIDER = "mimocode_external"
+const CODEX_EXTERNAL_API_KEY = "MIMOCODE_EXTERNAL_API_KEY"
+
+const providerKey = (provider: Provider.Info | undefined) =>
+  provider?.key ?? (typeof provider?.options?.apiKey === "string" ? provider.options.apiKey : undefined)
+
+const codexConfig = (key: string, value: string) => ["-c", `${key}=${JSON.stringify(value)}`]
+const externalRunModelID = (input: z.infer<typeof ExternalRunInput>, ctx: ExternalRunContext) =>
+  ctx.model?.api.id || input.model.modelID
+
+const externalRunLabel = (input: Pick<ExternalRunBody, "target">) => externalTargetLabels[input.target]
+
+const externalRunFailure = (input: ExternalRunBody, err: unknown) =>
+  [`${externalRunLabel(input)} failed.`, errorMessage(err)].filter(Boolean).join("\n")
+
+const isDeepseekClaudeRun = (input: z.infer<typeof ExternalRunInput>, model: Provider.Model, provider?: Provider.Info) =>
+  input.target === "claude" &&
+  (input.model.providerID === "deepseek" ||
+    provider?.id === "deepseek" ||
+    model.api.url.includes("deepseek.com"))
+
+const externalRunClaudeCommand = (input: z.infer<typeof ExternalRunInput>, ctx: ExternalRunContext) => {
+  if (ctx.model && isDeepseekClaudeRun(input, ctx.model, ctx.provider))
+    return [
+      "claude",
+      "-p",
+      "--dangerously-skip-permissions",
+      "--output-format",
+      "stream-json",
+      "--include-partial-messages",
+      input.prompt,
+    ]
+  return [
+    "claude",
+    "-p",
+    "--dangerously-skip-permissions",
+    "--output-format",
+    "stream-json",
+    "--include-partial-messages",
+    "--model",
+    externalRunModelID(input, ctx),
+    input.prompt,
+  ]
+}
+
+export function externalRunCodexConfig(input: z.infer<typeof ExternalRunInput>, ctx: ExternalRunContext) {
+  if (input.target !== "codex") return []
+  if (!ctx.model) return []
+  const model = ctx.model
+  const url = ctx.codexBridge?.baseURL ?? Provider.apiUrlForExternalTarget(model, "codex", ctx.provider?.options?.baseURL)
+  if (!url) return []
+  return [
+    ...codexConfig("model_provider", CODEX_EXTERNAL_PROVIDER),
+    ...codexConfig(`model_providers.${CODEX_EXTERNAL_PROVIDER}.name`, ctx.provider?.name ?? "MiMo Code Provider"),
+    ...codexConfig(`model_providers.${CODEX_EXTERNAL_PROVIDER}.base_url`, url),
+    ...codexConfig(`model_providers.${CODEX_EXTERNAL_PROVIDER}.wire_api`, "responses"),
+    ...((ctx.codexBridge?.authToken ?? providerKey(ctx.provider))
+      ? codexConfig(`model_providers.${CODEX_EXTERNAL_PROVIDER}.env_key`, CODEX_EXTERNAL_API_KEY)
+      : []),
+  ]
+}
+
+type ExternalRunContext = {
+  directory: string
+  model?: Provider.Model
+  provider?: Provider.Info
+  codexBridge?: {
+    baseURL: string
+    authToken: string
   }
-  return []
+}
+
+export function externalRunCommand(input: z.infer<typeof ExternalRunInput>, ctx: ExternalRunContext) {
+  if (input.target === "claude") return externalRunClaudeCommand(input, ctx)
+  if (input.target === "codex") {
+    return [
+      "codex",
+      "exec",
+      "--dangerously-bypass-approvals-and-sandbox",
+      ...externalRunCodexConfig(input, ctx),
+      "-m",
+      externalRunModelID(input, ctx),
+      "-C",
+      ctx.directory,
+      input.prompt,
+    ]
+  }
+  return [
+    "opencode",
+    "run",
+    "--format",
+    "json",
+    "--dangerously-skip-permissions",
+    "--model",
+    `${input.model.providerID}/${input.model.modelID}`,
+    "--agent",
+    input.agent,
+    "--dir",
+    ctx.directory,
+    ...(input.variant ? ["--variant", input.variant] : []),
+    input.prompt,
+  ]
 }
 
 export function externalRunCodexStreamingCommand(
   input: ExternalRunBody,
-  ctx: { directory: string; outputFile: string },
+  ctx: ExternalRunContext & { outputFile: string },
 ) {
   const command = externalRunCommand(input, ctx)
   return [...command.slice(0, -1), "--json", "--output-last-message", ctx.outputFile, command.at(-1) ?? ""]
+}
+
+export function externalRunOpencodeStreamingCommand(input: ExternalRunBody, ctx: ExternalRunContext) {
+  return externalRunCommand(input, ctx)
 }
 
 function processOutput(result: Process.Result, label: string) {
@@ -116,14 +219,14 @@ function parseJsonLine(line: string) {
 
 function codexItemStatus(item: Record<string, unknown> | undefined) {
   const itemType = asString(item?.type)
-  if (itemType === "agent_message") return "Codex is writing"
-  if (itemType === "reasoning") return "Codex is thinking"
+  if (itemType === "agent_message") return "Writing"
+  if (itemType === "reasoning") return "Thinking"
   if (itemType === "command_execution") {
     const command = firstString(item?.command, item?.title, item?.name)
-    return command ? `Codex is running: ${command}` : "Codex is running a command"
+    return command ? `Running: ${command}` : "Running a command"
   }
   if (!itemType) return
-  return `Codex: ${itemType.replaceAll("_", " ")}`
+  return itemType.replaceAll("_", " ")
 }
 
 export function externalRunCodexEventUpdate(line: string): ExternalRunUpdate | undefined {
@@ -153,21 +256,63 @@ export function externalRunCodexEventUpdate(line: string): ExternalRunUpdate | u
 
   if (deltaText && type?.includes("delta")) {
     if (itemType === "reasoning" || type.includes("reasoning"))
-      return { appendReasoning: deltaText, status: "Codex is thinking" }
-    return { appendText: deltaText, status: "Codex is writing" }
+      return { appendReasoning: deltaText, status: "Thinking" }
+    return { appendText: deltaText, status: "Writing" }
   }
+  if (deltaText) return { appendText: deltaText, status: "Writing" }
 
   if (text && (itemType === "agent_message" || type === "agent_message")) {
-    return { text, status: "Codex is writing" }
+    return { text, status: "Writing" }
   }
   if (text && (itemType === "reasoning" || type === "reasoning")) {
-    return { reasoning: text, status: "Codex is thinking" }
+    return { reasoning: text, status: "Thinking" }
   }
-  if (type === "turn.started") return { status: "Codex is thinking" }
-  if (type === "turn.completed") return { status: "Codex finished" }
-  if (type === "turn.failed") return { status: "Codex failed" }
+  if (text && type?.includes("error")) return { text, status: "Failed" }
+  if (type === "turn.started") return { status: "Thinking" }
+  if (type === "turn.completed") return { status: "Finished" }
+  if (type === "turn.failed") return { status: "Failed", text: firstString(event.message, asRecord(event.error)?.message) }
   if (type === "item.started") return { status: codexItemStatus(item) }
   if (type === "item.completed") return { status: codexItemStatus(item) }
+}
+
+export function externalRunClaudeEventUpdate(line: string): ExternalRunUpdate | undefined {
+  const event = parseJsonLine(line)
+  if (!event) return
+
+  const type = asString(event.type)
+  const message = asRecord(event.message)
+  const result = firstString(event.result, event.text, event.message)
+  const content = contentText(message?.content) ?? contentText(event.content)
+  const delta = firstString(
+    contentText(asRecord(event.delta)?.content),
+    asRecord(event.delta)?.text,
+    event.text_delta,
+    event.delta,
+  )
+
+  if (delta && type?.includes("assistant")) return { appendText: delta, status: "Writing" }
+  if (content && type === "assistant") return { text: content, status: "Writing" }
+  if (result && type === "result") return { text: result, status: "Finished" }
+  if (type === "system") return { status: "Thinking" }
+  if (type === "error") return { text: firstString(asRecord(event.error)?.message, event.message), status: "Failed" }
+}
+
+export function externalRunOpencodeEventUpdate(line: string): ExternalRunUpdate | undefined {
+  const event = parseJsonLine(line)
+  if (!event) return
+
+  const type = asString(event.type)
+  const part = asRecord(event.part)
+  const text = contentText(part?.content) ?? asString(part?.text)
+  if (type === "text" && text) return { text, status: "Writing" }
+  if (type === "reasoning" && text) return { reasoning: text, status: "Thinking" }
+  if (type === "tool_use") {
+    const tool = asString(part?.tool)
+    return { status: tool ? `Using ${tool}` : "Using a tool" }
+  }
+  if (type === "step_start") return { status: "Working" }
+  if (type === "step_finish") return { status: "Finishing" }
+  if (type === "error") return { status: "Failed", text: firstString(event.error, asRecord(event.error)?.message) }
 }
 
 async function readStreamText(stream: NodeJS.ReadableStream) {
@@ -197,14 +342,29 @@ export function externalRunEnv(
   model: Provider.Model,
   provider: Provider.Info | undefined,
 ) {
-  if (input.target === "codex") return {}
+  const key = providerKey(provider)
+  if (input.target === "codex") {
+    const url = Provider.apiUrlForExternalTarget(model, input.target, provider?.options?.baseURL)
+    return url && key ? { [CODEX_EXTERNAL_API_KEY]: key } : {}
+  }
 
   const url = Provider.apiUrlForExternalTarget(model, input.target, provider?.options?.baseURL)
-  const key = provider?.key ?? (typeof provider?.options?.apiKey === "string" ? provider.options.apiKey : undefined)
   if (input.target === "claude") {
+    const modelID = externalRunModelID(input, { directory: "", model, provider })
+    const isDeepseek = isDeepseekClaudeRun(input, model, provider)
+    const defaultModelEnv = {
+      ANTHROPIC_MODEL: modelID,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: modelID,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: modelID,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: isDeepseek ? "deepseek-v4-flash" : modelID,
+      CLAUDE_CODE_SUBAGENT_MODEL: isDeepseek ? "deepseek-v4-flash" : modelID,
+      ...(isDeepseek ? { CLAUDE_CODE_EFFORT_LEVEL: "max" } : {}),
+    }
     return {
       ...(url ? { ANTHROPIC_BASE_URL: url, ANTHROPIC_API_URL: url } : {}),
       ...(key ? { ANTHROPIC_API_KEY: key } : {}),
+      ...(key && isDeepseek ? { ANTHROPIC_AUTH_TOKEN: key } : {}),
+      ...defaultModelEnv,
     }
   }
   return {}
@@ -212,49 +372,163 @@ export function externalRunEnv(
 
 async function runExternal(
   input: ExternalRunBody,
-  ctx: { directory: string; env: NodeJS.ProcessEnv; update?: (update: ExternalRunUpdate) => Promise<void> },
+  ctx: ExternalRunContext & {
+    env: NodeJS.ProcessEnv
+    update?: (update: ExternalRunUpdate) => Promise<void>
+  },
 ) {
-  if (input.target === "claude") {
-    const result = await Process.run(externalRunCommand(input, ctx), {
-      cwd: ctx.directory,
-      env: ctx.env,
-      nothrow: true,
+  const abort = new AbortController()
+  const timeout = setTimeout(() => {
+    void ctx.update?.({
+      status: `${externalRunLabel(input)} timed out`,
     })
-    return processOutput(result, externalTargetLabels[input.target])
+    abort.abort()
+  }, EXTERNAL_RUN_TIMEOUT)
+  const timers = [5_000, 15_000, 30_000, 60_000].map((ms) =>
+    setTimeout(() => {
+      void ctx.update?.({
+        status: `${externalRunLabel(input)} is still waiting`,
+      })
+    }, ms),
+  )
+  const clearTimers = () => {
+    clearTimeout(timeout)
+    timers.forEach(clearTimeout)
+  }
+
+  if (input.target === "claude") {
+    let streamedText = ""
+    try {
+      const proc = Process.spawn(externalRunCommand(input, ctx), {
+        cwd: ctx.directory,
+        env: ctx.env,
+        stdout: "pipe",
+        stderr: "pipe",
+        abort: abort.signal,
+      })
+      if (!proc.stdout || !proc.stderr) throw new Error("Claude Code process output not available")
+      const [code, stdout, stderr] = await Promise.all([
+        proc.exited,
+        readStreamLines(proc.stdout, async (line) => {
+          const update = externalRunClaudeEventUpdate(line)
+          if (!update) return
+          if (update.text !== undefined) streamedText = update.text
+          if (update.appendText !== undefined) streamedText += update.appendText
+          await ctx.update?.(update)
+        }),
+        readStreamText(proc.stderr),
+      ])
+      if (code === 0 && streamedText.trim()) return streamedText.trim()
+      return processOutput(
+        {
+          code,
+          stdout: Buffer.from(stdout),
+          stderr: Buffer.from(stderr),
+        },
+        externalTargetLabels[input.target],
+      )
+    } finally {
+      clearTimers()
+    }
+  }
+
+  if (input.target === "opencode") {
+    let streamedText = ""
+    try {
+      const proc = Process.spawn(externalRunOpencodeStreamingCommand(input, ctx), {
+        cwd: ctx.directory,
+        env: ctx.env,
+        stdout: "pipe",
+        stderr: "pipe",
+        abort: abort.signal,
+      })
+      if (!proc.stdout || !proc.stderr) throw new Error("OpenCode process output not available")
+      const [code, stdout, stderr] = await Promise.all([
+        proc.exited,
+        readStreamLines(proc.stdout, async (line) => {
+          const update = externalRunOpencodeEventUpdate(line)
+          if (!update) return
+          if (update.text !== undefined) streamedText = update.text
+          if (update.appendText !== undefined) streamedText += update.appendText
+          await ctx.update?.(update)
+        }),
+        readStreamText(proc.stderr),
+      ])
+      if (code === 0 && streamedText.trim()) return streamedText.trim()
+      return processOutput(
+        {
+          code,
+          stdout: Buffer.from(stdout),
+          stderr: Buffer.from(stderr),
+        },
+        externalTargetLabels[input.target],
+      )
+    } finally {
+      clearTimers()
+    }
   }
 
   const outputFile = path.join(os.tmpdir(), `mimocode-codex-${crypto.randomUUID()}.txt`)
   let streamedText = ""
-  const proc = Process.spawn(externalRunCodexStreamingCommand(input, { directory: ctx.directory, outputFile }), {
-    cwd: ctx.directory,
-    env: ctx.env,
-    stdout: "pipe",
-    stderr: "pipe",
-  })
-  if (!proc.stdout || !proc.stderr) throw new Error("Codex process output not available")
-  const [code, stdout, stderr] = await Promise.all([
-    proc.exited,
-    readStreamLines(proc.stdout, async (line) => {
-      const update = externalRunCodexEventUpdate(line)
-      if (!update) return
-      if (update.text !== undefined) streamedText = update.text
-      if (update.appendText !== undefined) streamedText += update.appendText
-      await ctx.update?.(update)
-    }),
-    readStreamText(proc.stderr),
-  ])
-  const output = await fs.readFile(outputFile, "utf8").catch(() => "")
-  await fs.unlink(outputFile).catch(() => undefined)
-  if (output.trim()) return output.trim()
-  if (streamedText.trim()) return streamedText.trim()
-  return processOutput(
-    {
-      code,
-      stdout: Buffer.from(stdout),
-      stderr: Buffer.from(stderr),
-    },
-    externalTargetLabels[input.target],
-  )
+  const upstreamURL = ctx.model ? Provider.apiUrlForExternalTarget(ctx.model, "codex", ctx.provider?.options?.baseURL) : undefined
+  const bridge =
+    ctx.model && upstreamURL && providerKey(ctx.provider) && Provider.codexBridgeRequired(ctx.model, ctx.provider?.options?.baseURL)
+      ? await startCodexBridge({
+          model: ctx.model,
+          provider: ctx.provider,
+          upstreamURL,
+          upstreamKey: providerKey(ctx.provider)!,
+          authToken: `mimocode-codex-${crypto.randomUUID()}`,
+        })
+      : undefined
+  try {
+    const proc = Process.spawn(
+      externalRunCodexStreamingCommand(input, {
+        directory: ctx.directory,
+        model: ctx.model,
+        outputFile,
+        provider: ctx.provider,
+        ...(bridge ? { codexBridge: bridge } : {}),
+      }),
+      {
+        cwd: ctx.directory,
+        env: {
+          ...ctx.env,
+          ...(bridge ? { [CODEX_EXTERNAL_API_KEY]: bridge.authToken } : {}),
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+        abort: abort.signal,
+      },
+    )
+    if (!proc.stdout || !proc.stderr) throw new Error("Codex process output not available")
+    const [code, stdout, stderr] = await Promise.all([
+      proc.exited,
+      readStreamLines(proc.stdout, async (line) => {
+        const update = externalRunCodexEventUpdate(line)
+        if (!update) return
+        if (update.text !== undefined) streamedText = update.text
+        if (update.appendText !== undefined) streamedText += update.appendText
+        await ctx.update?.(update)
+      }),
+      readStreamText(proc.stderr),
+    ])
+    const output = await fs.readFile(outputFile, "utf8").catch(() => "")
+    await fs.unlink(outputFile).catch(() => undefined)
+    if (output.trim()) return output.trim()
+    if (streamedText.trim()) return streamedText.trim()
+    return processOutput(
+      {
+        code,
+        stdout: Buffer.from(stdout),
+        stderr: Buffer.from(stderr),
+      },
+      externalTargetLabels[input.target],
+    )
+  } finally {
+    clearTimers()
+    await bridge?.stop()
+  }
 }
 
 function taskToTodo(t: Task) {
@@ -1185,18 +1459,6 @@ export const SessionRoutes = lazy(() =>
             throw new NamedError.Unknown({ message: `Agent not found: "${body.agent}".${hint}` })
           }
 
-          if (body.target === "opencode") {
-            const prompt = yield* SessionPrompt.Service
-            return yield* prompt.prompt({
-              sessionID,
-              messageID: body.messageID,
-              agent: agent.name,
-              model: body.model,
-              variant: body.variant,
-              parts: [{ type: "text", text: body.prompt }],
-            })
-          }
-
           const user: MessageV2.User = {
             id: body.messageID ?? MessageID.ascending(),
             sessionID,
@@ -1217,8 +1479,6 @@ export const SessionRoutes = lazy(() =>
           const ctx = yield* InstanceState.context
           const provider = yield* Provider.Service
           const status = yield* SessionStatus.Service
-          const selectedModel = yield* provider.getModel(body.model.providerID, body.model.modelID)
-          const selectedProvider = yield* provider.getProvider(body.model.providerID)
           const now = Date.now()
           const assistant: MessageV2.Assistant = {
             id: MessageID.ascending(),
@@ -1249,12 +1509,18 @@ export const SessionRoutes = lazy(() =>
           const reasoning = {
             part: undefined as MessageV2.ReasoningPart | undefined,
           }
+          let hasAssistantText = false
 
           try {
+            const selectedModel = yield* provider.getModel(body.model.providerID, body.model.modelID)
+            const selectedProvider = yield* provider.getProvider(body.model.providerID)
+
             const output = yield* Effect.promise(() =>
               runExternal(body, {
                 directory: info.directory,
                 env: externalRunEnv(body, selectedModel, selectedProvider),
+                model: selectedModel,
+                provider: selectedProvider,
                 update: async (update) => {
                   if (update.status) {
                     await runRequest(
@@ -1281,19 +1547,34 @@ export const SessionRoutes = lazy(() =>
                   }
 
                   if (update.text === undefined && update.appendText === undefined) return
-                  part.text = update.text !== undefined ? update.text : part.text + (update.appendText ?? "")
+                  if (update.text !== undefined) {
+                    hasAssistantText = true
+                    part.text = update.text
+                  }
+                  if (update.appendText !== undefined) {
+                    part.text = hasAssistantText ? part.text + update.appendText : update.appendText
+                    hasAssistantText = true
+                  }
                   await runRequest("SessionRoutes.externalRun.part", c, session.updatePart(part))
                 },
-              }),
+              }).catch((err) => externalRunFailure(body, err)),
             )
             const completed = Date.now()
-            part.text = output || part.text || `${externalTargetLabels[body.target]} returned no output.`
+            part.text = output || (hasAssistantText ? part.text : `${externalTargetLabels[body.target]} returned no output.`)
             part.time = { start: part.time?.start ?? now, end: completed }
             assistant.time = { ...assistant.time, completed }
             if (reasoning.part) {
               reasoning.part.time = { ...reasoning.part.time, end: completed }
               yield* session.updatePart(reasoning.part)
             }
+            yield* session.updateMessage(assistant)
+            yield* session.updatePart(part)
+            return { info: assistant, parts: reasoning.part ? [reasoning.part, part] : [part] }
+          } catch (err) {
+            const completed = Date.now()
+            part.text = externalRunFailure(body, err)
+            part.time = { start: part.time?.start ?? now, end: completed }
+            assistant.time = { ...assistant.time, completed }
             yield* session.updateMessage(assistant)
             yield* session.updatePart(part)
             return { info: assistant, parts: reasoning.part ? [reasoning.part, part] : [part] }

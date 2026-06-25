@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto"
 import { EventEmitter } from "node:events"
-import { existsSync } from "node:fs"
 import { createServer } from "node:net"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -25,13 +24,14 @@ app.setPath("userData", join(app.getPath("appData"), APP_ID))
 process.env.XDG_STATE_HOME = app.getPath("userData")
 const { autoUpdater } = pkg
 
-import type { InitStep, ServerReadyData, SqliteMigrationProgress, WslConfig } from "../preload/types"
+import type { InitStep, ServerReadyData, WslConfig } from "../preload/types"
 import { checkAppExists, resolveAppPath, wslPath } from "./apps"
 import { APP_ID, APP_LEGACY_PROTOCOL, APP_NAME, APP_PROTOCOL, UPDATER_ENABLED } from "./constants"
-import { registerIpcHandlers, sendDeepLinks, sendMenuCommand, sendSqliteMigrationProgress } from "./ipc"
+import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
 import { initLogging } from "./logging"
 import { parseMarkdown } from "./markdown"
 import { createMenu } from "./menu"
+import { getProgrammingAgents, refreshProgrammingAgents, updateProgrammingAgent } from "./programming-agents"
 import {
   getDefaultServerUrl,
   getWslConfig,
@@ -47,14 +47,13 @@ import {
   setBackgroundColor,
   setDockIcon,
 } from "./windows"
-import { drizzle } from "drizzle-orm/node-sqlite/driver"
-import type { Server } from "virtual:mimocode-server"
+import type { LocalServerListener } from "./server"
 
 const initEmitter = new EventEmitter()
 let initStep: InitStep = { phase: "server_waiting" }
 
 let mainWindow: BrowserWindow | null = null
-let server: Server.Listener | null = null
+let server: LocalServerListener | null = null
 const loadingComplete = defer<void>()
 
 const pendingDeepLinks: string[] = []
@@ -116,6 +115,7 @@ function setupApp() {
     registerRendererProtocol()
     setDockIcon()
     setupAutoUpdater()
+    refreshProgrammingAgents()
     await initialize()
   })
 }
@@ -139,8 +139,6 @@ function setInitStep(step: InitStep) {
 }
 
 async function initialize() {
-  const needsMigration = !sqliteFileExists()
-  const sqliteDone = needsMigration ? defer<void>() : undefined
   let overlay: BrowserWindow | null = null
 
   const port = await getSidecarPort()
@@ -150,30 +148,6 @@ async function initialize() {
 
   const loadingTask = (async () => {
     logger.log("sidecar connection started", { url })
-
-    initEmitter.on("sqlite", (progress: SqliteMigrationProgress) => {
-      setInitStep({ phase: "sqlite_waiting" })
-      if (overlay) sendSqliteMigrationProgress(overlay, progress)
-      if (mainWindow) sendSqliteMigrationProgress(mainWindow, progress)
-      if (progress.type === "Done") sqliteDone?.resolve()
-    })
-
-    if (needsMigration) {
-      const { Database, JsonMigration } = await import("virtual:mimocode-server")
-      await JsonMigration.run(drizzle({ client: Database.Client().$client }), {
-        progress: (event: { current: number; total: number }) => {
-          const percent = event.total > 0 ? Math.round((event.current / event.total) * 100) : 100
-          initEmitter.emit("sqlite", { type: "InProgress", value: percent })
-        },
-      })
-      initEmitter.emit("sqlite", { type: "Done" })
-
-      sqliteDone?.resolve()
-    }
-
-    if (needsMigration) {
-      await sqliteDone?.promise
-    }
 
     logger.log("spawning sidecar", { url })
     const { listener, health } = await spawnLocalServer(hostname, port, password)
@@ -196,12 +170,10 @@ async function initialize() {
     logger.log("loading task finished")
   })()
 
-  if (needsMigration) {
-    const show = await Promise.race([loadingTask.then(() => false), delay(1_000).then(() => true)])
-    if (show) {
-      overlay = createLoadingWindow()
-      await delay(1_000)
-    }
+  const show = await Promise.race([loadingTask.then(() => false), delay(1_000).then(() => true)])
+  if (show) {
+    overlay = createLoadingWindow()
+    await delay(1_000)
   }
 
   await loadingTask
@@ -265,6 +237,8 @@ registerIpcHandlers({
   checkUpdate: async () => checkUpdate(),
   installUpdate: async () => installUpdate(),
   setBackgroundColor: (color) => setBackgroundColor(color),
+  getProgrammingAgents,
+  updateProgrammingAgent,
 })
 
 function killSidecar() {
@@ -314,13 +288,6 @@ async function getSidecarPort() {
       server.close(() => resolve(port))
     })
   })
-}
-
-function sqliteFileExists() {
-  const xdg = process.env.XDG_DATA_HOME
-  const base = xdg && xdg.length > 0 ? xdg : join(homedir(), ".local", "share")
-  // Compatibility path used by the current MiMo-Code sidecar database layer.
-  return existsSync(join(base, "opencode", "opencode.db"))
 }
 
 function setupAutoUpdater() {

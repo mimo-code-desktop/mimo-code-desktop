@@ -1,3 +1,6 @@
+import { spawn } from "node:child_process"
+import type { ChildProcess } from "node:child_process"
+import path from "node:path"
 import { app } from "electron"
 import { DEFAULT_SERVER_URL_KEY, RENDERER_ORIGIN, WSL_ENABLED_KEY } from "./constants"
 import { getUserShell, loadShellEnv } from "./shell-env"
@@ -6,6 +9,7 @@ import { getStore } from "./store"
 export type WslConfig = { enabled: boolean }
 
 export type HealthCheck = { wait: Promise<void> }
+export type LocalServerListener = { stop: () => void }
 
 export const SIDECAR_USERNAME = "opencode"
 
@@ -33,19 +37,25 @@ export function setWslConfig(config: WslConfig) {
 }
 
 export async function spawnLocalServer(hostname: string, port: number, password: string) {
-  prepareServerEnv(password)
-  const { Log, Server } = await import("virtual:mimocode-server")
-  await Log.init({ level: "WARN" })
-  const listener = await Server.listen({
-    port,
-    hostname,
-    username: SIDECAR_USERNAME,
-    password,
-    cors: [RENDERER_ORIGIN],
+  const env = prepareServerEnv(password)
+  const command = serverCommand(env)
+  const child = spawn(command.cmd, [...command.args, "serve", "--hostname", hostname, "--port", String(port), "--cors", RENDERER_ORIGIN], {
+    env,
+    shell: process.platform === "win32",
+    stdio: ["ignore", "pipe", "pipe"],
   })
+  const output = collectOutput(child)
 
   const wait = (async () => {
     const url = `http://${hostname}:${port}`
+    const exited = new Promise<never>((_, reject) => {
+      child.once("error", (error) => {
+        reject(new Error(`Failed to start ${command.cmd}: ${error.message}`))
+      })
+      child.once("exit", (code, signal) => {
+        reject(new Error(`${command.cmd} serve exited with ${signal ?? `code ${code ?? 0}`}${output()}`))
+      })
+    })
 
     const ready = async () => {
       while (true) {
@@ -54,16 +64,34 @@ export async function spawnLocalServer(hostname: string, port: number, password:
       }
     }
 
-    await ready()
+    await Promise.race([ready(), exited])
   })()
 
-  return { listener, health: { wait } }
+  return {
+    listener: {
+      stop() {
+        if (child.killed) return
+        child.kill()
+      },
+    } satisfies LocalServerListener,
+    health: { wait },
+  }
 }
 
-function prepareServerEnv(password: string) {
+function serverCommand(env: NodeJS.ProcessEnv) {
+  if (env.MIMOCODE_BIN_PATH) return { cmd: env.MIMOCODE_BIN_PATH, args: [] }
+  if (app.isPackaged) return { cmd: "mimo", args: [] }
+
+  return {
+    cmd: "bun",
+    args: ["run", "--cwd", path.resolve(app.getAppPath(), "../opencode"), "--conditions=browser", "src/index.ts"],
+  }
+}
+
+function prepareServerEnv(password: string): NodeJS.ProcessEnv {
   const shell = process.platform === "win32" ? null : getUserShell()
   const shellEnv = shell ? (loadShellEnv(shell) ?? {}) : {}
-  const env = {
+  return {
     ...process.env,
     ...shellEnv,
     MIMOCODE_EXPERIMENTAL_ICON_DISCOVERY: "true",
@@ -78,7 +106,19 @@ function prepareServerEnv(password: string) {
     OPENCODE_SERVER_PASSWORD: password,
     XDG_STATE_HOME: app.getPath("userData"),
   }
-  Object.assign(process.env, env)
+}
+
+function collectOutput(child: ChildProcess) {
+  let output = ""
+  const append = (chunk: Buffer) => {
+    output = `${output}${chunk.toString()}`
+    if (output.length > 4000) output = output.slice(-4000)
+  }
+
+  child.stdout?.on("data", append)
+  child.stderr?.on("data", append)
+
+  return () => (output.trim() ? `\n${output.trim()}` : "")
 }
 
 export async function checkHealth(url: string, password?: string | null): Promise<boolean> {

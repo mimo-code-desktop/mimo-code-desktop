@@ -17,6 +17,7 @@ import { Link } from "@/components/link"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { decode64 } from "@/utils/base64"
 import { DialogConnectProvider } from "./dialog-connect-provider"
@@ -135,6 +136,26 @@ const builtinProviderUrls: Record<string, { openai?: string; anthropic?: string 
   "alibaba-cn": { openai: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
   alibaba: { openai: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
 }
+const providerApiKeyUrls: Record<string, string> = {
+  mimo: "https://platform.xiaomimimo.com/",
+  xiaomi: "https://platform.xiaomimimo.com/",
+  "xiaomi-token-plan-sgp": "https://platform.xiaomimimo.com/token-plan",
+  deepseek: "https://platform.deepseek.com/api_keys",
+  zhipuai: "https://open.bigmodel.cn/usercenter/apikeys",
+  bigmodel: "https://open.bigmodel.cn/usercenter/apikeys",
+  zai: "https://z.ai/manage-apikey/apikey-list",
+  "moonshotai-cn": "https://platform.kimi.ai/console/api-keys",
+  "kimi-for-coding": "https://platform.kimi.ai/console/api-keys",
+  minimax: "https://platform.minimax.io/",
+  "alibaba-cn": "https://dashscope.console.aliyun.com/apiKey",
+  alibaba: "https://dashscope.console.aliyun.com/apiKey",
+  anthropic: "https://console.anthropic.com/settings/keys",
+  openai: "https://platform.openai.com/api-keys",
+  google: "https://aistudio.google.com/app/apikey",
+  openrouter: "https://openrouter.ai/settings/keys",
+  vercel: "https://vercel.com/dashboard/ai-gateway/api-keys",
+  opencode: "https://opencode.ai/auth",
+}
 
 function cleanURL(value: string | undefined) {
   const trimmed = value?.trim()
@@ -205,6 +226,7 @@ function latestModels(item: ProviderItem, providers: Record<string, ModelsDevPro
 export const SettingsProviders = () => {
   const dialog = useDialog()
   const language = useLanguage()
+  const platform = usePlatform()
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const providers = useProviders()
@@ -747,7 +769,7 @@ export const SettingsProviders = () => {
       .finally(() => setStore("customSaving", false))
   }
 
-  const providerUrls = (item: ProviderItem | undefined) => {
+  const providerSavedUrls = (item: ProviderItem | undefined) => {
     if (!item) return {}
     const saved = globalSync.data.config.provider?.[item.id]
     const configuredUrls = apiUrls(saved?.options?.apiUrls)
@@ -760,7 +782,6 @@ export const SettingsProviders = () => {
       )?.api.url
     const builtin = builtinProviderUrls[item.id] ?? {}
     const openaiURL =
-      store.form[item.id]?.openaiURL ??
       configuredUrls.openai ??
       stringOption(saved?.options?.baseURL) ??
       currentUrls.openai ??
@@ -772,7 +793,6 @@ export const SettingsProviders = () => {
       ? undefined
       : anthropicEndpointFromOpenAIURL(openaiURL)
     const anthropicURL =
-      store.form[item.id]?.anthropicURL ??
       configuredUrls.anthropic ??
       currentUrls.anthropic ??
       (item.id === "anthropic"
@@ -788,11 +808,35 @@ export const SettingsProviders = () => {
     }
   }
 
+  const providerUrls = (item: ProviderItem | undefined) => {
+    if (!item) return {}
+    const savedUrls = providerSavedUrls(item)
+    return {
+      openai: store.form[item.id]?.openaiURL ?? savedUrls.openai,
+      anthropic: store.form[item.id]?.anthropicURL ?? savedUrls.anthropic,
+    }
+  }
+
   const providerApiKey = (item: ProviderItem | undefined) => {
     if (!item) return ""
     const configured = globalSync.data.config.provider?.[item.id]?.options?.apiKey
     if (typeof configured === "string") return configured
     return "key" in item && typeof item.key === "string" ? item.key : ""
+  }
+
+  const providerApiKeyUrl = (item: ProviderItem) => {
+    if (providerApiKeyUrls[item.id]) return providerApiKeyUrls[item.id]
+    const url = item.options.apiKeyURL ?? item.options.apiKeyUrl
+    return typeof url === "string" && /^https?:\/\//.test(url) ? url : undefined
+  }
+
+  const providerHasChanges = (item: ProviderItem) => {
+    const savedUrls = providerSavedUrls(item)
+    return (
+      (cleanURL(store.form[item.id]?.openaiURL) || savedUrls.openai) !== savedUrls.openai ||
+      (cleanURL(store.form[item.id]?.anthropicURL) || savedUrls.anthropic) !== savedUrls.anthropic ||
+      (store.form[item.id]?.apiKey?.trim() || providerApiKey(item)) !== providerApiKey(item)
+    )
   }
 
   const modelUrls = (item: ProviderItem, model: Model) => {
@@ -835,10 +879,11 @@ export const SettingsProviders = () => {
 
   const save = async (item: ProviderItem) => {
     if (store.form[item.id]?.saving) return
+    if (!providerHasChanges(item)) return
     updateForm(item.id, "saving", true)
 
     const apiKey = providerApiKeyInput?.value.trim() || store.form[item.id]?.apiKey?.trim()
-    const savedUrls = providerUrls(item)
+    const savedUrls = providerSavedUrls(item)
     const urls = {
       openai: cleanURL(providerOpenAIURLInput?.value) || savedUrls.openai,
       anthropic: cleanURL(providerAnthropicURLInput?.value) || savedUrls.anthropic,
@@ -879,7 +924,11 @@ export const SettingsProviders = () => {
         await reloadProviders()
       })
       .then(() => {
-        updateForm(item.id, "apiKey", apiKey || providerApiKey(item))
+        batch(() => {
+          updateForm(item.id, "apiKey", apiKey || providerApiKey(item))
+          updateForm(item.id, "openaiURL", urls.openai)
+          updateForm(item.id, "anthropicURL", urls.anthropic)
+        })
         showToast({
           variant: "success",
           icon: "circle-check",
@@ -970,7 +1019,11 @@ export const SettingsProviders = () => {
       .filter((item): item is string => !!item)
       .join(" - ")
   const agentMessages = (agents: AgentResult[] | undefined, ok: boolean) => [
-    ...new Set(agentList(agents, ok).map(agentMessage).filter((item) => item.length > 0)),
+    ...new Set(
+      agentList(agents, ok)
+        .map(agentMessage)
+        .filter((item) => item.length > 0),
+    ),
   ]
   const agentTag = (agent: AgentResult) => (
     <Tooltip placement="top" value={agentMessage(agent)} contentClass="max-w-[360px] break-words">
@@ -1214,8 +1267,7 @@ export const SettingsProviders = () => {
                               <Button
                                 size="small"
                                 variant="primary"
-                                icon="check"
-                                disabled={store.form[item().id]?.saving}
+                                disabled={store.form[item().id]?.saving || !providerHasChanges(item())}
                                 onClick={() => void save(item())}
                               >
                                 {store.form[item().id]?.saving
@@ -1269,40 +1321,53 @@ export const SettingsProviders = () => {
                         value={providerUrls(item()).openai}
                         onChange={(value) => updateForm(item().id, "openaiURL", value)}
                       />
-                      <TextField
-                        ref={(el: HTMLInputElement) => {
-                          providerApiKeyInput = el
-                        }}
-                        type={showProviderKey() ? "text" : "password"}
-                        label={language.t("settings.providers.apiKey.label", { provider: item().name })}
-                        placeholder={language.t("settings.providers.apiKey.placeholder")}
-                        value={store.form[item().id]?.apiKey ?? providerApiKey(item())}
-                        onChange={(value) => updateForm(item().id, "apiKey", value)}
-                        trailing={
-                          <Tooltip
-                            placement="top"
-                            value={
-                              showProviderKey()
-                                ? language.t("settings.providers.apiKey.hide")
-                                : language.t("settings.providers.apiKey.show")
-                            }
-                          >
-                            <IconButton
-                              type="button"
-                              icon="eye"
-                              variant="ghost"
-                              tabIndex={-1}
-                              data-slot="input-trailing"
-                              aria-label={
+                      <div class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                        <TextField
+                          ref={(el: HTMLInputElement) => {
+                            providerApiKeyInput = el
+                          }}
+                          type={showProviderKey() ? "text" : "password"}
+                          label={language.t("settings.providers.apiKey.label", { provider: item().name })}
+                          placeholder={language.t("settings.providers.apiKey.placeholder")}
+                          value={store.form[item().id]?.apiKey ?? providerApiKey(item())}
+                          onChange={(value) => updateForm(item().id, "apiKey", value)}
+                          trailing={
+                            <Tooltip
+                              placement="top"
+                              value={
                                 showProviderKey()
                                   ? language.t("settings.providers.apiKey.hide")
                                   : language.t("settings.providers.apiKey.show")
                               }
-                              onClick={() => setShowProviderKey((value) => !value)}
-                            />
-                          </Tooltip>
-                        }
-                      />
+                            >
+                              <IconButton
+                                type="button"
+                                icon="eye"
+                                variant="ghost"
+                                tabIndex={-1}
+                                data-slot="input-trailing"
+                                aria-label={
+                                  showProviderKey()
+                                    ? language.t("settings.providers.apiKey.hide")
+                                    : language.t("settings.providers.apiKey.show")
+                                }
+                                onClick={() => setShowProviderKey((value) => !value)}
+                              />
+                            </Tooltip>
+                          }
+                        />
+                        <Show when={providerApiKeyUrl(item())}>
+                          <Button
+                            type="button"
+                            size="large"
+                            variant="secondary"
+                            icon="square-arrow-top-right"
+                            onClick={() => platform.openLink(providerApiKeyUrl(item())!)}
+                          >
+                            {language.t("settings.providers.apiKey.get")}
+                          </Button>
+                        </Show>
+                      </div>
                     </div>
                   </div>
 
@@ -1400,7 +1465,6 @@ export const SettingsProviders = () => {
                     form="custom-provider-settings-form"
                     size="small"
                     variant="primary"
-                    icon="check"
                     disabled={store.customSaving}
                   >
                     {store.customSaving ? language.t("common.saving") : language.t("common.save")}

@@ -1,12 +1,10 @@
-export type InitStep = { phase: "server_waiting" } | { phase: "sqlite_waiting" } | { phase: "done" }
+export type InitStep = { phase: "server_waiting" } | { phase: "done" }
 
 export type ServerReadyData = {
   url: string
   username: string | null
   password: string | null
 }
-
-export type SqliteMigrationProgress = { type: "InProgress"; value: number } | { type: "Done" }
 
 export type WslConfig = { enabled: boolean }
 
@@ -17,6 +15,26 @@ export type TitlebarTheme = {
 
 export type WindowConfig = {
   updaterEnabled: boolean
+}
+
+export type ProgrammingAgentId = "mimo" | "codex" | "claude" | "opencode"
+
+export type ProgrammingAgentStatus = {
+  id: ProgrammingAgentId
+  name: string
+  command: string
+  path?: string
+  packageName: string
+  installUrl: string
+  installed: boolean
+  currentVersion?: string
+  latestVersion?: string
+  update: "latest" | "outdated" | "not_installed" | "unknown"
+}
+
+export type ProgrammingAgentsResult = {
+  agents: ProgrammingAgentStatus[]
+  refreshing: boolean
 }
 
 export type ElectronAPI = {
@@ -43,7 +61,6 @@ export type ElectronAPI = {
   storeLength: (name: string) => Promise<number>
 
   getWindowCount: () => Promise<number>
-  onSqliteMigrationProgress: (cb: (progress: SqliteMigrationProgress) => void) => () => void
   onMenuCommand: (cb: (id: string) => void) => () => void
   onDeepLink: (cb: (urls: string[]) => void) => () => void
 
@@ -76,4 +93,6 @@ export type ElectronAPI = {
   checkUpdate: () => Promise<{ updateAvailable: boolean; version?: string }>
   installUpdate: () => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
+  getProgrammingAgents: (options?: { refresh?: boolean }) => Promise<ProgrammingAgentsResult>
+  updateProgrammingAgent: (id: ProgrammingAgentId) => Promise<void>
 }

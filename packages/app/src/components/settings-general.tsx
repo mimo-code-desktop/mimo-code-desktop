@@ -27,7 +27,6 @@ import {
 import { decode64 } from "@/utils/base64"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { Link } from "./link"
-import { SettingsList } from "./settings-list"
 
 let demoSoundState = {
   cleanup: undefined as (() => void) | undefined,
@@ -67,7 +66,7 @@ const playDemoSound = (id: string | undefined) => {
   }, 100)
 }
 
-export const SettingsGeneral: Component = () => {
+export const SettingsGeneral: Component<{ onOpenShortcuts?: () => void }> = (props) => {
   const theme = useTheme()
   const language = useLanguage()
   const permission = usePermission()
@@ -179,6 +178,9 @@ export const SettingsGeneral: Component = () => {
       label: language.label(locale),
     })),
   )
+  const colorSchemeLabel = createMemo(
+    () => colorSchemeOptions().find((o) => o.value === theme.colorScheme())?.label ?? "",
+  )
 
   const noneSound = { id: "none", label: "sound.option.none" } as const
   const soundOptions = [noneSound, ...SOUND_OPTIONS]
@@ -217,422 +219,445 @@ export const SettingsGeneral: Component = () => {
   })
 
   const GeneralSection = () => (
-    <div class="flex flex-col gap-1">
-      <SettingsList>
-        <SettingsRow
-          title={language.t("settings.general.row.language.title")}
-          description={language.t("settings.general.row.language.description")}
-        >
-          <Select
-            data-action="settings-language"
-            options={languageOptions()}
-            current={languageOptions().find((o) => o.value === language.locale())}
-            value={(o) => o.value}
-            label={(o) => o.label}
-            onSelect={(option) => option && language.setLocale(option.value)}
-            variant="secondary"
-            size="small"
-            triggerVariant="settings"
+    <SettingsSection
+      icon="sliders"
+      title={language.t("settings.general.section.basic")}
+      description={language.t("settings.general.section.basic.description")}
+    >
+      <SettingsRow
+        title={language.t("settings.general.row.language.title")}
+        description={language.t("settings.general.row.language.description")}
+      >
+        <Select
+          data-action="settings-language"
+          options={languageOptions()}
+          current={languageOptions().find((o) => o.value === language.locale())}
+          value={(o) => o.value}
+          label={(o) => o.label}
+          onSelect={(option) => option && language.setLocale(option.value)}
+          variant="secondary"
+          size="small"
+          triggerVariant="settings"
+        />
+      </SettingsRow>
+
+      <SettingsNavigationRow
+        icon="keyboard"
+        title={language.t("settings.shortcuts.title")}
+        description={language.t("settings.general.row.shortcuts.description")}
+        onClick={props.onOpenShortcuts}
+      />
+
+      <SettingsRow
+        title={language.t("command.permissions.autoaccept.enable")}
+        description={language.t("toast.permissions.autoaccept.on.description")}
+      >
+        <div data-action="settings-auto-accept-permissions">
+          <Switch checked={accepting()} disabled={!dir()} onChange={toggleAccept} />
+        </div>
+      </SettingsRow>
+
+      <SettingsRow
+        title={language.t("settings.general.row.reasoningSummaries.title")}
+        description={language.t("settings.general.row.reasoningSummaries.description")}
+      >
+        <div data-action="settings-feed-reasoning-summaries">
+          <Switch
+            checked={settings.general.showReasoningSummaries()}
+            onChange={(checked) => settings.general.setShowReasoningSummaries(checked)}
           />
-        </SettingsRow>
+        </div>
+      </SettingsRow>
 
-        <SettingsRow
-          title={language.t("command.permissions.autoaccept.enable")}
-          description={language.t("toast.permissions.autoaccept.on.description")}
-        >
-          <div data-action="settings-auto-accept-permissions">
-            <Switch checked={accepting()} disabled={!dir()} onChange={toggleAccept} />
-          </div>
-        </SettingsRow>
+      <SettingsRow
+        title={language.t("settings.general.row.shellToolPartsExpanded.title")}
+        description={language.t("settings.general.row.shellToolPartsExpanded.description")}
+      >
+        <div data-action="settings-feed-shell-tool-parts-expanded">
+          <Switch
+            checked={settings.general.shellToolPartsExpanded()}
+            onChange={(checked) => settings.general.setShellToolPartsExpanded(checked)}
+          />
+        </div>
+      </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.row.reasoningSummaries.title")}
-          description={language.t("settings.general.row.reasoningSummaries.description")}
-        >
-          <div data-action="settings-feed-reasoning-summaries">
-            <Switch
-              checked={settings.general.showReasoningSummaries()}
-              onChange={(checked) => settings.general.setShowReasoningSummaries(checked)}
-            />
-          </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.row.shellToolPartsExpanded.title")}
-          description={language.t("settings.general.row.shellToolPartsExpanded.description")}
-        >
-          <div data-action="settings-feed-shell-tool-parts-expanded">
-            <Switch
-              checked={settings.general.shellToolPartsExpanded()}
-              onChange={(checked) => settings.general.setShellToolPartsExpanded(checked)}
-            />
-          </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.row.editToolPartsExpanded.title")}
-          description={language.t("settings.general.row.editToolPartsExpanded.description")}
-        >
-          <div data-action="settings-feed-edit-tool-parts-expanded">
-            <Switch
-              checked={settings.general.editToolPartsExpanded()}
-              onChange={(checked) => settings.general.setEditToolPartsExpanded(checked)}
-            />
-          </div>
-        </SettingsRow>
-      </SettingsList>
-    </div>
+      <SettingsRow
+        title={language.t("settings.general.row.editToolPartsExpanded.title")}
+        description={language.t("settings.general.row.editToolPartsExpanded.description")}
+      >
+        <div data-action="settings-feed-edit-tool-parts-expanded">
+          <Switch
+            checked={settings.general.editToolPartsExpanded()}
+            onChange={(checked) => settings.general.setEditToolPartsExpanded(checked)}
+          />
+        </div>
+      </SettingsRow>
+    </SettingsSection>
   )
 
   const AdvancedSection = () => (
-    <div class="flex flex-col gap-1">
-      <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.advanced")}</h3>
+    <SettingsSection
+      icon="settings-gear"
+      title={language.t("settings.general.section.advanced")}
+      description={language.t("settings.general.section.advanced.description")}
+    >
+      <SettingsRow
+        title={language.t("settings.general.row.showFileTree.title")}
+        description={language.t("settings.general.row.showFileTree.description")}
+      >
+        <div data-action="settings-show-file-tree">
+          <Switch
+            checked={settings.general.showFileTree()}
+            onChange={(checked) => settings.general.setShowFileTree(checked)}
+          />
+        </div>
+      </SettingsRow>
 
-      <SettingsList>
-        <SettingsRow
-          title={language.t("settings.general.row.showFileTree.title")}
-          description={language.t("settings.general.row.showFileTree.description")}
-        >
-          <div data-action="settings-show-file-tree">
-            <Switch
-              checked={settings.general.showFileTree()}
-              onChange={(checked) => settings.general.setShowFileTree(checked)}
-            />
-          </div>
-        </SettingsRow>
+      <SettingsRow
+        title={language.t("settings.general.row.showNavigation.title")}
+        description={language.t("settings.general.row.showNavigation.description")}
+      >
+        <div data-action="settings-show-navigation">
+          <Switch
+            checked={settings.general.showNavigation()}
+            onChange={(checked) => settings.general.setShowNavigation(checked)}
+          />
+        </div>
+      </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.row.showNavigation.title")}
-          description={language.t("settings.general.row.showNavigation.description")}
-        >
-          <div data-action="settings-show-navigation">
-            <Switch
-              checked={settings.general.showNavigation()}
-              onChange={(checked) => settings.general.setShowNavigation(checked)}
-            />
-          </div>
-        </SettingsRow>
+      <SettingsRow
+        title={language.t("settings.general.row.showSearch.title")}
+        description={language.t("settings.general.row.showSearch.description")}
+      >
+        <div data-action="settings-show-search">
+          <Switch
+            checked={settings.general.showSearch()}
+            onChange={(checked) => settings.general.setShowSearch(checked)}
+          />
+        </div>
+      </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.row.showSearch.title")}
-          description={language.t("settings.general.row.showSearch.description")}
-        >
-          <div data-action="settings-show-search">
-            <Switch
-              checked={settings.general.showSearch()}
-              onChange={(checked) => settings.general.setShowSearch(checked)}
-            />
-          </div>
-        </SettingsRow>
+      <SettingsRow
+        title={language.t("settings.general.row.showTerminal.title")}
+        description={language.t("settings.general.row.showTerminal.description")}
+      >
+        <div data-action="settings-show-terminal">
+          <Switch
+            checked={settings.general.showTerminal()}
+            onChange={(checked) => settings.general.setShowTerminal(checked)}
+          />
+        </div>
+      </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.row.showTerminal.title")}
-          description={language.t("settings.general.row.showTerminal.description")}
-        >
-          <div data-action="settings-show-terminal">
-            <Switch
-              checked={settings.general.showTerminal()}
-              onChange={(checked) => settings.general.setShowTerminal(checked)}
-            />
-          </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.row.showStatus.title")}
-          description={language.t("settings.general.row.showStatus.description")}
-        >
-          <div data-action="settings-show-status">
-            <Switch
-              checked={settings.general.showStatus()}
-              onChange={(checked) => settings.general.setShowStatus(checked)}
-            />
-          </div>
-        </SettingsRow>
-      </SettingsList>
-    </div>
+      <SettingsRow
+        title={language.t("settings.general.row.showStatus.title")}
+        description={language.t("settings.general.row.showStatus.description")}
+      >
+        <div data-action="settings-show-status">
+          <Switch
+            checked={settings.general.showStatus()}
+            onChange={(checked) => settings.general.setShowStatus(checked)}
+          />
+        </div>
+      </SettingsRow>
+    </SettingsSection>
   )
 
   const AppearanceSection = () => (
-    <div class="flex flex-col gap-1">
-      <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.appearance")}</h3>
+    <SettingsSection
+      icon="models"
+      title={language.t("settings.general.section.appearance")}
+      description={language.t("settings.general.section.appearance.description")}
+    >
+      <SettingsRow
+        title={language.t("settings.general.row.colorScheme.title")}
+        description={language.t("settings.general.row.colorScheme.description")}
+      >
+        <Select
+          data-action="settings-color-scheme"
+          options={colorSchemeOptions()}
+          current={colorSchemeOptions().find((o) => o.value === theme.colorScheme())}
+          value={(o) => o.value}
+          label={(o) => o.label}
+          onSelect={(option) => option && theme.setColorScheme(option.value)}
+          onHighlight={(option) => {
+            if (!option) return
+            theme.previewColorScheme(option.value)
+            return () => theme.cancelPreview()
+          }}
+          variant="secondary"
+          size="small"
+          triggerVariant="settings"
+          triggerStyle={{ "min-width": "220px" }}
+        />
+      </SettingsRow>
 
-      <SettingsList>
-        <SettingsRow
-          title={language.t("settings.general.row.colorScheme.title")}
-          description={language.t("settings.general.row.colorScheme.description")}
-        >
-          <Select
-            data-action="settings-color-scheme"
-            options={colorSchemeOptions()}
-            current={colorSchemeOptions().find((o) => o.value === theme.colorScheme())}
-            value={(o) => o.value}
-            label={(o) => o.label}
-            onSelect={(option) => option && theme.setColorScheme(option.value)}
-            onHighlight={(option) => {
-              if (!option) return
-              theme.previewColorScheme(option.value)
-              return () => theme.cancelPreview()
-            }}
-            variant="secondary"
-            size="small"
-            triggerVariant="settings"
-            triggerStyle={{ "min-width": "220px" }}
+      <SettingsRow
+        title={language.t("settings.general.row.theme.title")}
+        description={
+          <>
+            {language.t("settings.general.row.theme.description")}{" "}
+            <Link href="https://opencode.ai/docs/themes/">{language.t("common.learnMore")}</Link>
+          </>
+        }
+      >
+        <Select
+          data-action="settings-theme"
+          options={themeOptions()}
+          current={themeOptions().find((o) => o.id === theme.themeId())}
+          value={(o) => o.id}
+          label={(o) => o.name}
+          onSelect={(option) => {
+            if (!option) return
+            theme.setTheme(option.id)
+          }}
+          onHighlight={(option) => {
+            if (!option) return
+            theme.previewTheme(option.id)
+            return () => theme.cancelPreview()
+          }}
+          variant="secondary"
+          size="small"
+          triggerVariant="settings"
+        />
+      </SettingsRow>
+
+      <SettingsRow
+        title={language.t("settings.general.row.uiFont.title")}
+        description={language.t("settings.general.row.uiFont.description")}
+      >
+        <div class="w-full sm:w-[220px]">
+          <TextField
+            data-action="settings-ui-font"
+            label={language.t("settings.general.row.uiFont.title")}
+            hideLabel
+            type="text"
+            value={sans()}
+            onChange={(value) => settings.appearance.setUIFont(value)}
+            placeholder={sansDefault}
+            spellcheck={false}
+            autocorrect="off"
+            autocomplete="off"
+            autocapitalize="off"
+            class="text-12-regular"
+            style={{ "font-family": sansFontFamily(settings.appearance.uiFont()) }}
           />
-        </SettingsRow>
+        </div>
+      </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.row.theme.title")}
-          description={
-            <>
-              {language.t("settings.general.row.theme.description")}{" "}
-              <Link href="https://opencode.ai/docs/themes/">{language.t("common.learnMore")}</Link>
-            </>
-          }
-        >
-          <Select
-            data-action="settings-theme"
-            options={themeOptions()}
-            current={themeOptions().find((o) => o.id === theme.themeId())}
-            value={(o) => o.id}
-            label={(o) => o.name}
-            onSelect={(option) => {
-              if (!option) return
-              theme.setTheme(option.id)
-            }}
-            onHighlight={(option) => {
-              if (!option) return
-              theme.previewTheme(option.id)
-              return () => theme.cancelPreview()
-            }}
-            variant="secondary"
-            size="small"
-            triggerVariant="settings"
+      <SettingsRow
+        title={language.t("settings.general.row.font.title")}
+        description={language.t("settings.general.row.font.description")}
+      >
+        <div class="w-full sm:w-[220px]">
+          <TextField
+            data-action="settings-code-font"
+            label={language.t("settings.general.row.font.title")}
+            hideLabel
+            type="text"
+            value={mono()}
+            onChange={(value) => settings.appearance.setFont(value)}
+            placeholder={monoDefault}
+            spellcheck={false}
+            autocorrect="off"
+            autocomplete="off"
+            autocapitalize="off"
+            class="text-12-regular"
+            style={{ "font-family": monoFontFamily(settings.appearance.font()) }}
           />
-        </SettingsRow>
+        </div>
+      </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.row.uiFont.title")}
-          description={language.t("settings.general.row.uiFont.description")}
-        >
-          <div class="w-full sm:w-[220px]">
-            <TextField
-              data-action="settings-ui-font"
-              label={language.t("settings.general.row.uiFont.title")}
-              hideLabel
-              type="text"
-              value={sans()}
-              onChange={(value) => settings.appearance.setUIFont(value)}
-              placeholder={sansDefault}
-              spellcheck={false}
-              autocorrect="off"
-              autocomplete="off"
-              autocapitalize="off"
-              class="text-12-regular"
-              style={{ "font-family": sansFontFamily(settings.appearance.uiFont()) }}
-            />
-          </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.row.font.title")}
-          description={language.t("settings.general.row.font.description")}
-        >
-          <div class="w-full sm:w-[220px]">
-            <TextField
-              data-action="settings-code-font"
-              label={language.t("settings.general.row.font.title")}
-              hideLabel
-              type="text"
-              value={mono()}
-              onChange={(value) => settings.appearance.setFont(value)}
-              placeholder={monoDefault}
-              spellcheck={false}
-              autocorrect="off"
-              autocomplete="off"
-              autocapitalize="off"
-              class="text-12-regular"
-              style={{ "font-family": monoFontFamily(settings.appearance.font()) }}
-            />
-          </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.row.terminalFont.title")}
-          description={language.t("settings.general.row.terminalFont.description")}
-        >
-          <div class="w-full sm:w-[220px]">
-            <TextField
-              data-action="settings-terminal-font"
-              label={language.t("settings.general.row.terminalFont.title")}
-              hideLabel
-              type="text"
-              value={terminal()}
-              onChange={(value) => settings.appearance.setTerminalFont(value)}
-              placeholder={terminalDefault}
-              spellcheck={false}
-              autocorrect="off"
-              autocomplete="off"
-              autocapitalize="off"
-              class="text-12-regular"
-              style={{ "font-family": terminalFontFamily(settings.appearance.terminalFont()) }}
-            />
-          </div>
-        </SettingsRow>
-      </SettingsList>
-    </div>
+      <SettingsRow
+        title={language.t("settings.general.row.terminalFont.title")}
+        description={language.t("settings.general.row.terminalFont.description")}
+      >
+        <div class="w-full sm:w-[220px]">
+          <TextField
+            data-action="settings-terminal-font"
+            label={language.t("settings.general.row.terminalFont.title")}
+            hideLabel
+            type="text"
+            value={terminal()}
+            onChange={(value) => settings.appearance.setTerminalFont(value)}
+            placeholder={terminalDefault}
+            spellcheck={false}
+            autocorrect="off"
+            autocomplete="off"
+            autocapitalize="off"
+            class="text-12-regular"
+            style={{ "font-family": terminalFontFamily(settings.appearance.terminalFont()) }}
+          />
+        </div>
+      </SettingsRow>
+    </SettingsSection>
   )
 
   const NotificationsSection = () => (
-    <div class="flex flex-col gap-1">
-      <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.notifications")}</h3>
+    <SettingsSection
+      icon="speech-bubble"
+      title={language.t("settings.general.section.notifications")}
+      description={language.t("settings.general.section.notifications.description")}
+    >
+      <SettingsRow
+        title={language.t("settings.general.notifications.agent.title")}
+        description={language.t("settings.general.notifications.agent.description")}
+      >
+        <div data-action="settings-notifications-agent">
+          <Switch
+            checked={settings.notifications.agent()}
+            onChange={(checked) => settings.notifications.setAgent(checked)}
+          />
+        </div>
+      </SettingsRow>
 
-      <SettingsList>
-        <SettingsRow
-          title={language.t("settings.general.notifications.agent.title")}
-          description={language.t("settings.general.notifications.agent.description")}
-        >
-          <div data-action="settings-notifications-agent">
-            <Switch
-              checked={settings.notifications.agent()}
-              onChange={(checked) => settings.notifications.setAgent(checked)}
-            />
-          </div>
-        </SettingsRow>
+      <SettingsRow
+        title={language.t("settings.general.notifications.permissions.title")}
+        description={language.t("settings.general.notifications.permissions.description")}
+      >
+        <div data-action="settings-notifications-permissions">
+          <Switch
+            checked={settings.notifications.permissions()}
+            onChange={(checked) => settings.notifications.setPermissions(checked)}
+          />
+        </div>
+      </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.notifications.permissions.title")}
-          description={language.t("settings.general.notifications.permissions.description")}
-        >
-          <div data-action="settings-notifications-permissions">
-            <Switch
-              checked={settings.notifications.permissions()}
-              onChange={(checked) => settings.notifications.setPermissions(checked)}
-            />
-          </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.notifications.errors.title")}
-          description={language.t("settings.general.notifications.errors.description")}
-        >
-          <div data-action="settings-notifications-errors">
-            <Switch
-              checked={settings.notifications.errors()}
-              onChange={(checked) => settings.notifications.setErrors(checked)}
-            />
-          </div>
-        </SettingsRow>
-      </SettingsList>
-    </div>
+      <SettingsRow
+        title={language.t("settings.general.notifications.errors.title")}
+        description={language.t("settings.general.notifications.errors.description")}
+      >
+        <div data-action="settings-notifications-errors">
+          <Switch
+            checked={settings.notifications.errors()}
+            onChange={(checked) => settings.notifications.setErrors(checked)}
+          />
+        </div>
+      </SettingsRow>
+    </SettingsSection>
   )
 
   const SoundsSection = () => (
-    <div class="flex flex-col gap-1">
-      <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.sounds")}</h3>
+    <SettingsSection
+      icon="prompt"
+      title={language.t("settings.general.section.sounds")}
+      description={language.t("settings.general.section.sounds.description")}
+    >
+      <SettingsRow
+        title={language.t("settings.general.sounds.agent.title")}
+        description={language.t("settings.general.sounds.agent.description")}
+      >
+        <Select
+          data-action="settings-sounds-agent"
+          {...soundSelectProps(
+            () => settings.sounds.agentEnabled(),
+            () => settings.sounds.agent(),
+            (value) => settings.sounds.setAgentEnabled(value),
+            (id) => settings.sounds.setAgent(id),
+          )}
+        />
+      </SettingsRow>
 
-      <SettingsList>
-        <SettingsRow
-          title={language.t("settings.general.sounds.agent.title")}
-          description={language.t("settings.general.sounds.agent.description")}
-        >
-          <Select
-            data-action="settings-sounds-agent"
-            {...soundSelectProps(
-              () => settings.sounds.agentEnabled(),
-              () => settings.sounds.agent(),
-              (value) => settings.sounds.setAgentEnabled(value),
-              (id) => settings.sounds.setAgent(id),
-            )}
-          />
-        </SettingsRow>
+      <SettingsRow
+        title={language.t("settings.general.sounds.permissions.title")}
+        description={language.t("settings.general.sounds.permissions.description")}
+      >
+        <Select
+          data-action="settings-sounds-permissions"
+          {...soundSelectProps(
+            () => settings.sounds.permissionsEnabled(),
+            () => settings.sounds.permissions(),
+            (value) => settings.sounds.setPermissionsEnabled(value),
+            (id) => settings.sounds.setPermissions(id),
+          )}
+        />
+      </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.sounds.permissions.title")}
-          description={language.t("settings.general.sounds.permissions.description")}
-        >
-          <Select
-            data-action="settings-sounds-permissions"
-            {...soundSelectProps(
-              () => settings.sounds.permissionsEnabled(),
-              () => settings.sounds.permissions(),
-              (value) => settings.sounds.setPermissionsEnabled(value),
-              (id) => settings.sounds.setPermissions(id),
-            )}
-          />
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.sounds.errors.title")}
-          description={language.t("settings.general.sounds.errors.description")}
-        >
-          <Select
-            data-action="settings-sounds-errors"
-            {...soundSelectProps(
-              () => settings.sounds.errorsEnabled(),
-              () => settings.sounds.errors(),
-              (value) => settings.sounds.setErrorsEnabled(value),
-              (id) => settings.sounds.setErrors(id),
-            )}
-          />
-        </SettingsRow>
-      </SettingsList>
-    </div>
+      <SettingsRow
+        title={language.t("settings.general.sounds.errors.title")}
+        description={language.t("settings.general.sounds.errors.description")}
+      >
+        <Select
+          data-action="settings-sounds-errors"
+          {...soundSelectProps(
+            () => settings.sounds.errorsEnabled(),
+            () => settings.sounds.errors(),
+            (value) => settings.sounds.setErrorsEnabled(value),
+            (id) => settings.sounds.setErrors(id),
+          )}
+        />
+      </SettingsRow>
+    </SettingsSection>
   )
 
   const UpdatesSection = () => (
-    <div class="flex flex-col gap-1">
-      <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.updates")}</h3>
+    <SettingsSection
+      icon="download"
+      title={language.t("settings.general.section.updates")}
+      description={language.t("settings.general.section.updates.description")}
+    >
+      <SettingsRow
+        title={language.t("settings.updates.row.startup.title")}
+        description={language.t("settings.updates.row.startup.description")}
+      >
+        <div data-action="settings-updates-startup">
+          <Switch
+            checked={settings.updates.startup()}
+            disabled={!platform.checkUpdate}
+            onChange={(checked) => settings.updates.setStartup(checked)}
+          />
+        </div>
+      </SettingsRow>
 
-      <SettingsList>
-        <SettingsRow
-          title={language.t("settings.updates.row.startup.title")}
-          description={language.t("settings.updates.row.startup.description")}
-        >
-          <div data-action="settings-updates-startup">
-            <Switch
-              checked={settings.updates.startup()}
-              disabled={!platform.checkUpdate}
-              onChange={(checked) => settings.updates.setStartup(checked)}
-            />
-          </div>
-        </SettingsRow>
+      <SettingsRow
+        title={language.t("settings.general.row.releaseNotes.title")}
+        description={language.t("settings.general.row.releaseNotes.description")}
+      >
+        <div data-action="settings-release-notes">
+          <Switch
+            checked={settings.general.releaseNotes()}
+            onChange={(checked) => settings.general.setReleaseNotes(checked)}
+          />
+        </div>
+      </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.row.releaseNotes.title")}
-          description={language.t("settings.general.row.releaseNotes.description")}
-        >
-          <div data-action="settings-release-notes">
-            <Switch
-              checked={settings.general.releaseNotes()}
-              onChange={(checked) => settings.general.setReleaseNotes(checked)}
-            />
-          </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.updates.row.check.title")}
-          description={language.t("settings.updates.row.check.description")}
-        >
-          <Button size="small" variant="secondary" disabled={store.checking || !platform.checkUpdate} onClick={check}>
-            {store.checking
-              ? language.t("settings.updates.action.checking")
-              : language.t("settings.updates.action.checkNow")}
-          </Button>
-        </SettingsRow>
-      </SettingsList>
-    </div>
+      <SettingsRow
+        title={language.t("settings.updates.row.check.title")}
+        description={language.t("settings.updates.row.check.description")}
+      >
+        <Button size="small" variant="secondary" disabled={store.checking || !platform.checkUpdate} onClick={check}>
+          {store.checking
+            ? language.t("settings.updates.action.checking")
+            : language.t("settings.updates.action.checkNow")}
+        </Button>
+      </SettingsRow>
+    </SettingsSection>
   )
 
-  console.log(import.meta.env)
   return (
-    <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
+    <div class="flex h-full w-full flex-col overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--surface-stronger-non-alpha)_calc(100%_-_24px),transparent)]">
-        <div class="flex flex-col gap-1 pt-6 pb-8">
-          <h2 class="text-16-medium text-text-strong">{language.t("settings.tab.general")}</h2>
+        <div class="flex max-w-[840px] flex-col gap-3 pt-7 pb-7">
+          <div class="flex flex-wrap items-end justify-between gap-4">
+            <div class="flex min-w-0 flex-col gap-1">
+              <h2 class="text-20-medium text-text-strong">{language.t("settings.tab.general")}</h2>
+              <div class="text-12-regular text-text-weak">
+                {language.t("settings.general.section.basic.description")}
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="inline-flex h-7 items-center rounded-md border border-border-weak-base bg-surface-base px-2 text-12-medium text-text-base">
+                {colorSchemeLabel()}
+              </span>
+              <span class="inline-flex h-7 items-center rounded-md border border-border-weak-base bg-surface-base px-2 text-12-medium text-text-base">
+                {language.label(language.locale())}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="flex flex-col gap-8 w-full">
+      <div class="flex w-full max-w-[840px] flex-col gap-5">
         <GeneralSection />
 
         <AppearanceSection />
@@ -680,29 +705,29 @@ export const SettingsGeneral: Component = () => {
               platform.setDisplayBackend?.(checked ? "wayland" : "auto").finally(() => actions.refetch())
 
             return (
-              <div class="flex flex-col gap-1">
-                <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.display")}</h3>
-
-                <SettingsList>
-                  <SettingsRow
-                    title={
-                      <div class="flex items-center gap-2">
-                        <span>{language.t("settings.general.row.wayland.title")}</span>
-                        <Tooltip value={language.t("settings.general.row.wayland.tooltip")} placement="top">
-                          <span class="text-text-weak">
-                            <Icon name="help" size="small" />
-                          </span>
-                        </Tooltip>
-                      </div>
-                    }
-                    description={language.t("settings.general.row.wayland.description")}
-                  >
-                    <div data-action="settings-wayland">
-                      <Switch checked={value() === "wayland"} onChange={onChange} />
+              <SettingsSection
+                icon="window-cursor"
+                title={language.t("settings.general.section.display")}
+                description={language.t("settings.general.section.display.description")}
+              >
+                <SettingsRow
+                  title={
+                    <div class="flex items-center gap-2">
+                      <span>{language.t("settings.general.row.wayland.title")}</span>
+                      <Tooltip value={language.t("settings.general.row.wayland.tooltip")} placement="top">
+                        <span class="text-text-weak">
+                          <Icon name="help" size="small" />
+                        </span>
+                      </Tooltip>
                     </div>
-                  </SettingsRow>
-                </SettingsList>
-              </div>
+                  }
+                  description={language.t("settings.general.row.wayland.description")}
+                >
+                  <div data-action="settings-wayland">
+                    <Switch checked={value() === "wayland"} onChange={onChange} />
+                  </div>
+                </SettingsRow>
+              </SettingsSection>
             )
           }}
         </Show>
@@ -721,9 +746,57 @@ interface SettingsRowProps {
   children: JSX.Element
 }
 
+const SettingsSection: Component<{
+  icon: Parameters<typeof Icon>[0]["name"]
+  title: string
+  description: string
+  children: JSX.Element
+}> = (props) => {
+  return (
+    <section class="overflow-hidden rounded-lg border border-border-weak-base bg-surface-base shadow-[0_1px_0_rgba(255,255,255,0.04)]">
+      <div class="flex items-start gap-3 border-b border-border-weak-base bg-surface-raised-base px-4 py-3">
+        <div class="flex h-8 w-8 items-center justify-center rounded-md border border-border-weak-base bg-surface-base text-icon-base">
+          <Icon name={props.icon} size="small" />
+        </div>
+        <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h3 class="text-14-medium text-text-strong">{props.title}</h3>
+          <p class="text-12-regular text-text-weak">{props.description}</p>
+        </div>
+      </div>
+      <div class="px-4">{props.children}</div>
+    </section>
+  )
+}
+
+const SettingsNavigationRow: Component<{
+  icon: Parameters<typeof Icon>[0]["name"]
+  title: string
+  description: string
+  onClick?: () => void
+}> = (props) => {
+  return (
+    <button
+      type="button"
+      class="group flex w-full items-center gap-4 border-b border-border-weak-base py-3 text-left last:border-none focus-visible:outline-none"
+      onClick={props.onClick}
+    >
+      <div class="flex h-8 w-8 items-center justify-center rounded-md bg-surface-raised-base text-icon-base group-hover:bg-surface-raised-base-hover">
+        <Icon name={props.icon} size="small" />
+      </div>
+      <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span class="text-14-medium text-text-strong">{props.title}</span>
+        <span class="text-12-regular text-text-weak">{props.description}</span>
+      </div>
+      <div class="flex h-7 w-7 items-center justify-center rounded-md text-icon-weak-base group-hover:bg-surface-raised-base-hover group-hover:text-icon-base">
+        <Icon name="chevron-right" size="small" />
+      </div>
+    </button>
+  )
+}
+
 const SettingsRow: Component<SettingsRowProps> = (props) => {
   return (
-    <div class="flex flex-wrap items-center gap-4 py-3 border-b border-border-weak-base last:border-none sm:flex-nowrap">
+    <div class="flex flex-wrap items-center gap-4 py-3.5 border-b border-border-weak-base last:border-none sm:flex-nowrap">
       <div class="flex min-w-0 flex-1 flex-col gap-0.5">
         <span class="text-14-medium text-text-strong">{props.title}</span>
         <span class="text-12-regular text-text-weak">{props.description}</span>
