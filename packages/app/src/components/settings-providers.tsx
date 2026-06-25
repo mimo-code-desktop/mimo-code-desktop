@@ -253,6 +253,13 @@ export const SettingsProviders = () => {
     },
   })
 
+  // Solid's setStore cannot write a nested property when the provider row does
+  // not exist yet, so ensure the row is present before updating it.
+  const updateForm = <K extends keyof FormRow>(providerID: string, key: K, value: FormRow[K]) => {
+    if (!store.form[providerID]) setStore("form", providerID, {})
+    setStore("form", providerID, key, value)
+  }
+
   const source = (item: ProviderItem): ProviderSource | undefined => {
     if (!("source" in item)) return
     const value = item.source
@@ -781,6 +788,13 @@ export const SettingsProviders = () => {
     }
   }
 
+  const providerApiKey = (item: ProviderItem | undefined) => {
+    if (!item) return ""
+    const configured = globalSync.data.config.provider?.[item.id]?.options?.apiKey
+    if (typeof configured === "string") return configured
+    return "key" in item && typeof item.key === "string" ? item.key : ""
+  }
+
   const modelUrls = (item: ProviderItem, model: Model) => {
     const urls = providerUrls(item)
     const modelApiUrls = apiUrls(model.options.apiUrls)
@@ -821,7 +835,7 @@ export const SettingsProviders = () => {
 
   const save = async (item: ProviderItem) => {
     if (store.form[item.id]?.saving) return
-    setStore("form", item.id, "saving", true)
+    updateForm(item.id, "saving", true)
 
     const apiKey = providerApiKeyInput?.value.trim() || store.form[item.id]?.apiKey?.trim()
     const savedUrls = providerUrls(item)
@@ -856,6 +870,7 @@ export const SettingsProviders = () => {
                 ...(globalSync.data.config.provider?.[item.id]?.options ?? {}),
                 ...(urls.openai ? { baseURL: urls.openai } : {}),
                 ...(Object.keys(nextApiUrls).length ? { apiUrls: nextApiUrls } : {}),
+                ...(apiKey ? { apiKey } : {}),
               },
             },
           },
@@ -864,13 +879,7 @@ export const SettingsProviders = () => {
         await reloadProviders()
       })
       .then(() => {
-        setStore(
-          "form",
-          item.id,
-          produce((row) => {
-            row.apiKey = ""
-          }),
-        )
+        updateForm(item.id, "apiKey", apiKey || providerApiKey(item))
         showToast({
           variant: "success",
           icon: "circle-check",
@@ -885,12 +894,12 @@ export const SettingsProviders = () => {
           description: err instanceof Error ? err.message : String(err),
         })
       })
-      .finally(() => setStore("form", item.id, "saving", false))
+      .finally(() => updateForm(item.id, "saving", false))
   }
 
   const disconnect = async (item: ProviderItem) => {
     if (store.form[item.id]?.disconnecting) return
-    setStore("form", item.id, "disconnecting", true)
+    updateForm(item.id, "disconnecting", true)
     await globalSDK.client.auth
       .remove({ providerID: item.id })
       .then(async () => {
@@ -918,7 +927,7 @@ export const SettingsProviders = () => {
           description: err instanceof Error ? err.message : String(err),
         })
       })
-      .finally(() => setStore("form", item.id, "disconnecting", false))
+      .finally(() => updateForm(item.id, "disconnecting", false))
   }
 
   const test = async (item: ProviderItem, model: Model) => {
@@ -1248,7 +1257,7 @@ export const SettingsProviders = () => {
                         label={language.t("settings.providers.url.anthropic.label")}
                         placeholder="https://api.anthropic.com"
                         value={providerUrls(item()).anthropic}
-                        onChange={(value) => setStore("form", item().id, "anthropicURL", value)}
+                        onChange={(value) => updateForm(item().id, "anthropicURL", value)}
                       />
                       <TextField
                         ref={(el: HTMLInputElement) => {
@@ -1258,7 +1267,7 @@ export const SettingsProviders = () => {
                         label={language.t("settings.providers.url.openai.label")}
                         placeholder="https://api.openai.com/v1"
                         value={providerUrls(item()).openai}
-                        onChange={(value) => setStore("form", item().id, "openaiURL", value)}
+                        onChange={(value) => updateForm(item().id, "openaiURL", value)}
                       />
                       <TextField
                         ref={(el: HTMLInputElement) => {
@@ -1267,8 +1276,8 @@ export const SettingsProviders = () => {
                         type={showProviderKey() ? "text" : "password"}
                         label={language.t("settings.providers.apiKey.label", { provider: item().name })}
                         placeholder={language.t("settings.providers.apiKey.placeholder")}
-                        value={store.form[item().id]?.apiKey ?? ""}
-                        onChange={(value) => setStore("form", item().id, "apiKey", value)}
+                        value={store.form[item().id]?.apiKey ?? providerApiKey(item())}
+                        onChange={(value) => updateForm(item().id, "apiKey", value)}
                         trailing={
                           <Tooltip
                             placement="top"
