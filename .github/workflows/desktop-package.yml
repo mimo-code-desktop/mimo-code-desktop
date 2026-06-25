@@ -51,7 +51,9 @@ jobs:
       - name: Read package version
         id: package_version
         shell: bash
-        run: echo "version=$(bun -e 'console.log((await Bun.file(\"packages/desktop/package.json\").json()).version)')" >> "$GITHUB_OUTPUT"
+        run: |
+          version=$(bun -e "console.log((await Bun.file('packages/desktop/package.json').json()).version)")
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Typecheck desktop
         run: bun --cwd packages/desktop typecheck
@@ -125,7 +127,9 @@ jobs:
       - name: Read package version
         id: package_version
         shell: bash
-        run: echo "version=$(bun -e 'console.log((await Bun.file(\"packages/desktop/package.json\").json()).version)')" >> "$GITHUB_OUTPUT"
+        run: |
+          version=$(bun -e "console.log((await Bun.file('packages/desktop/package.json').json()).version)")
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Typecheck desktop
         run: bun --cwd packages/desktop typecheck
@@ -194,7 +198,9 @@ jobs:
       - name: Read package version
         id: package_version
         shell: bash
-        run: echo "version=$(bun -e 'console.log((await Bun.file(\"packages/desktop/package.json\").json()).version)')" >> "$GITHUB_OUTPUT"
+        run: |
+          version=$(bun -e "console.log((await Bun.file('packages/desktop/package.json').json()).version)")
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Typecheck desktop
         run: bun --cwd packages/desktop typecheck
