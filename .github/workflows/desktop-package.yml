@@ -203,7 +203,6 @@ jobs:
           if-no-files-found: error
           path: |
             packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage
-            packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage.blockmap
             packages/desktop/dist/mimo-code-desktop-linux-amd64.deb
             packages/desktop/dist/mimo-code-desktop-linux-x86_64.rpm
 
@@ -220,7 +219,6 @@ jobs:
           fi
           gh release upload "$tag" \
             packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage \
-            packages/desktop/dist/mimo-code-desktop-linux-x86_64.AppImage.blockmap \
             packages/desktop/dist/mimo-code-desktop-linux-amd64.deb \
             packages/desktop/dist/mimo-code-desktop-linux-x86_64.rpm \
             --clobber
